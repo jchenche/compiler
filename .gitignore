@@ -1,6 +1,7 @@
+# Generated files
 cool-lex.*
 
-# Grading related files
+# Grading files
 *.pl
 grading/
 
