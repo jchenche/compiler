@@ -1,1 +1,1 @@
-** Compiler for COOL.
+# Compiler for COOL.
