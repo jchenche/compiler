@@ -83,7 +83,7 @@ Z [Zz]
 DARROW          =>
 WHITESPACE      [ \n\f\r\t\v]
 
-%Start COMMENT ONELINECOMMENT
+%Start COMMENT ONELINECOMMENT ENDOFFILE
 
 %%
 
@@ -94,8 +94,10 @@ WHITESPACE      [ \n\f\r\t\v]
   int num_open = 0;
 <COMMENT,ONELINECOMMENT><<EOF>> {
   cool_yylval.error_msg = "EOF in comment";
+  BEGIN (ENDOFFILE);
   return (ERROR);
 }
+<ENDOFFILE><<EOF>> { return 0; }
 <INITIAL>"*)" {
   cool_yylval.error_msg = "Unmatched *)";
   return (ERROR);
