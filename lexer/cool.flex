@@ -92,21 +92,29 @@ WHITESPACE      [ \n\f\r\t\v]
   */
 
   int num_open = 0;
-<INITIAL>\(\*         { num_open++; BEGIN (COMMENT); }
-<COMMENT>\(\*         { num_open++; }
-            /* TODO: handle EOF */
+<COMMENT,ONELINECOMMENT><<EOF>> {
+  cool_yylval.error_msg = "EOF in comment";
+  return (ERROR);
+}
+<INITIAL>"*)" {
+  cool_yylval.error_msg = "Unmatched *)";
+  return (ERROR);
+}
+<INITIAL,COMMENT>"(*"           { num_open++; BEGIN (COMMENT); }
 <COMMENT>.|\n ;
-<COMMENT>\*\)         { num_open--; if(num_open == 0) BEGIN (0); }
-<INITIAL>--           { BEGIN (ONELINECOMMENT); }
+<COMMENT>"*)"                   { num_open--; if(num_open == 0) BEGIN (0); }
+<INITIAL>--                     { BEGIN (ONELINECOMMENT); }
 <ONELINECOMMENT>[^\n] ;
-<ONELINECOMMENT>\n    { BEGIN (0); }
+<ONELINECOMMENT>\n              { BEGIN (0); }
+
+
 
  /*
   *  The multiple-character operators.
   */
 
 
-<INITIAL>{C}{L}{A}{S}{S}             { return CLASS; }
+<INITIAL>(?:class)                   { return CLASS; }
 <INITIAL>{E}{L}{S}{E}                { return ELSE; }
 <INITIAL>{F}{I}                      { return FI; }
 <INITIAL>{I}{F}                      { return IF; }
