@@ -1,0 +1,9 @@
+cool-lex.*
+
+# Grading related files
+*.pl
+grading/
+
+# Binary and assembly
+*.s
+*.o
