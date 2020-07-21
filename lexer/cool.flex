@@ -85,7 +85,7 @@ Z [Zz]
 
 
 DARROW          =>
-WHITESPACE      [ \n\f\r\t\v]
+
 
 %Start COMMENT ONELINECOMMENT STRING
 
@@ -105,11 +105,12 @@ WHITESPACE      [ \n\f\r\t\v]
   return (ERROR);
 }
 <INITIAL,COMMENT>"(*"           { num_open++; BEGIN (COMMENT); }
-<COMMENT>.|\n ;
+<COMMENT>. ;
+<COMMENT>\n { curr_lineno++; }
 <COMMENT>"*)"                   { num_open--; if(num_open == 0) BEGIN (0); }
 <INITIAL>--                     { BEGIN (ONELINECOMMENT); }
 <ONELINECOMMENT>[^\n] ;
-<ONELINECOMMENT>\n              { BEGIN (0); }
+<ONELINECOMMENT>\n              { curr_lineno++; BEGIN (0); }
 
  /*
   *  Strings
@@ -126,12 +127,13 @@ WHITESPACE      [ \n\f\r\t\v]
   string_buf_idx = 0;
 }
 <STRING>\n {        /* Unescaped newline breaks the string */
+  curr_lineno++;
   BEGIN (0);
   cool_yylval.error_msg = "Unterminated string constant";
   return (ERROR);
 }
 <STRING>\\\n {      /* Escaped newline is ok */
-  ;
+  curr_lineno++;
 }
 <STRING>[\0] {      /* Null poisons the string but \ followed by 0 is ok */
   null_in_string = true;
@@ -196,7 +198,8 @@ f{A}{L}{S}{E} {
 
 
 <INITIAL>{DARROW}		         { return (DARROW); }
-<INITIAL>{WHITESPACE} ;
+<INITIAL>\n                  { curr_lineno++; }
+<INITIAL>[ \f\r\t\v] ;
 
 
  /*
