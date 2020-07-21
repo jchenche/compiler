@@ -44,6 +44,10 @@ extern YYSTYPE cool_yylval;
  *  Add Your own definitions here
  */
 
+int num_open = 0;
+bool null_in_string = false;
+
+
 %}
 
 /*
@@ -91,13 +95,13 @@ WHITESPACE      [ \n\f\r\t\v]
   *  Comments
   */
 
-  int num_open = 0;
+<ENDOFFILE><<EOF>> { return 0; } /* To avoid inf loop */
+
 <COMMENT,ONELINECOMMENT><<EOF>> {
-  BEGIN (ENDOFFILE);
+  BEGIN (ENDOFFILE); /* To avoid inf loop */
   cool_yylval.error_msg = "EOF in comment";
   return (ERROR);
 }
-<ENDOFFILE><<EOF>> { return 0; }
 <INITIAL>"*)" {
   cool_yylval.error_msg = "Unmatched *)";
   return (ERROR);
@@ -114,23 +118,25 @@ WHITESPACE      [ \n\f\r\t\v]
   */
 
 <STRING><<EOF>> {
-  BEGIN (ENDOFFILE);
+  BEGIN (ENDOFFILE); /* To avoid inf loop */
   cool_yylval.error_msg = "EOF in string constant";
-  return (ERROR);
-}
-<STRING>[\0][^\"]*\" {
-  BEGIN (0);
-  cool_yylval.error_msg = "String contains null character";
   return (ERROR);
 }
 <INITIAL>\" {
   BEGIN (STRING);
+  null_in_string = false;
   string_buf_idx = 0;
 }
-<STRING>\n {
+<STRING>\n {        /* Unescaped newline breaks the string */
   BEGIN (0);
   cool_yylval.error_msg = "Unterminated string constant";
   return (ERROR);
+}
+<STRING>\\\n {      /* Escaped newline is ok */
+  ;
+}
+<STRING>[\0] {      /* Null poisons the string but \ followed by 0 is ok */
+  null_in_string = true;
 }
 <STRING>[^\"] {
   string_buf[string_buf_idx++] = yytext[0];
@@ -146,18 +152,18 @@ WHITESPACE      [ \n\f\r\t\v]
 }
 <STRING>\" {
   BEGIN (0);
-  if (string_buf_idx <= MAX_STR_CONST) {
+  if (null_in_string) {
+    cool_yylval.error_msg = "String contains null character";
+    return (ERROR);
+  } else if (string_buf_idx >= MAX_STR_CONST) {
+    cool_yylval.error_msg = "String constant too long";
+    return (ERROR);
+  } else {
     string_buf[string_buf_idx] = '\0';
     cool_yylval.symbol = stringtable.add_string(string_buf);
     return (STR_CONST);
-  } else {
-    cool_yylval.error_msg = "String constant too long";
-    return (ERROR);
   }
 }
-
- /* char string_buf[MAX_STR_CONST]  */
- /* int  string_buf_idx */
 
 <INITIAL>(?:class)                   { return CLASS; }
 <INITIAL>{E}{L}{S}{E}                { return ELSE; }
