@@ -87,7 +87,7 @@ Z [Zz]
 DARROW          =>
 WHITESPACE      [ \n\f\r\t\v]
 
-%Start COMMENT ONELINECOMMENT ENDOFFILE STRING
+%Start COMMENT ONELINECOMMENT STRING
 
 %%
 
@@ -95,10 +95,8 @@ WHITESPACE      [ \n\f\r\t\v]
   *  Comments
   */
 
-<ENDOFFILE><<EOF>> { return 0; } /* To avoid inf loop */
-
 <COMMENT,ONELINECOMMENT><<EOF>> {
-  BEGIN (ENDOFFILE); /* To avoid inf loop */
+  BEGIN (0);
   cool_yylval.error_msg = "EOF in comment";
   return (ERROR);
 }
@@ -118,7 +116,7 @@ WHITESPACE      [ \n\f\r\t\v]
   */
 
 <STRING><<EOF>> {
-  BEGIN (ENDOFFILE); /* To avoid inf loop */
+  BEGIN (0);
   cool_yylval.error_msg = "EOF in string constant";
   return (ERROR);
 }
@@ -165,6 +163,9 @@ WHITESPACE      [ \n\f\r\t\v]
   }
 }
 
+
+
+
 <INITIAL>(?:class)                   { return CLASS; }
 <INITIAL>{E}{L}{S}{E}                { return ELSE; }
 <INITIAL>{F}{I}                      { return FI; }
@@ -195,7 +196,7 @@ f{A}{L}{S}{E} {
 
 
 <INITIAL>{DARROW}		         { return (DARROW); }
- /* <INITIAL>{WHITESPACE} ; */
+<INITIAL>{WHITESPACE} ;
 
 
  /*
