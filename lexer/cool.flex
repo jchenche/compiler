@@ -54,7 +54,6 @@ bool null_in_string = false;
  * Define names for regular expressions here.
  */
 
-
 A [Aa]
 B [Bb]
 C [Cc]
@@ -81,11 +80,6 @@ W [Ww]
 X [Xx]
 Y [Yy]
 Z [Zz]
-
-
-
-DARROW          =>
-
 
 %Start COMMENT ONELINECOMMENT STRING
 
@@ -165,8 +159,9 @@ DARROW          =>
   }
 }
 
-
-
+ /*
+  *  Keywords
+  */
 
 <INITIAL>(?:class)                   { return CLASS; }
 <INITIAL>{E}{L}{S}{E}                { return ELSE; }
@@ -194,10 +189,45 @@ f{A}{L}{S}{E} {
   return (BOOL_CONST);
 }
 
+ /*
+  *  Special symbols
+  */
 
+<INITIAL>\+   { return ('+'); }
+<INITIAL>\/   { return ('/'); }
+<INITIAL>-    { return ('-'); }
+<INITIAL>\*   { return ('*'); }
+<INITIAL>=    { return ('='); }
+<INITIAL><    { return ('<'); }
+<INITIAL>\.   { return ('.'); }
+<INITIAL>~    { return ('~'); }
+<INITIAL>,    { return (','); }
+<INITIAL>;    { return (';'); }
+<INITIAL>:    { return (':'); }
+<INITIAL>\(   { return ('('); }
+<INITIAL>\)   { return (')'); }
+<INITIAL>@    { return ('@'); }
+<INITIAL>\{   { return ('{'); }
+<INITIAL>\}   { return ('}'); }
+<INITIAL><-   { return (ASSIGN); }
+<INITIAL>=>	  { return (DARROW); }
 
+ /*
+  *  Integers, identifiers, and whitespace
+  */
 
-<INITIAL>{DARROW}		         { return (DARROW); }
+<INITIAL>[0-9]+ {
+  cool_yylval.symbol = inttable.add_string(yytext);
+  return (INT_CONST);
+}
+<INITIAL>[a-z][0-9a-zA-Z]* {
+  cool_yylval.symbol = idtable.add_string(yytext);
+  return (OBJECTID);
+}
+<INITIAL>[A-Z][0-9a-zA-Z]* {
+  cool_yylval.symbol = idtable.add_string(yytext);
+  return (TYPEID);
+}
 <INITIAL>\n                  { curr_lineno++; }
 <INITIAL>[ \f\r\t\v] ;
 
