@@ -100,7 +100,7 @@ Z [Zz]
 }
 <INITIAL,COMMENT>"(*"           { num_open++; BEGIN (COMMENT); }
 <COMMENT>. ;
-<COMMENT>\n { curr_lineno++; }
+<COMMENT>\n                     { curr_lineno++; }
 <COMMENT>"*)"                   { num_open--; if(num_open == 0) BEGIN (0); }
 <INITIAL>--                     { BEGIN (ONELINECOMMENT); }
 <ONELINECOMMENT>[^\n] ;
@@ -181,11 +181,11 @@ Z [Zz]
 <INITIAL>{N}{E}{W}                   { return NEW; }
 <INITIAL>{O}{F}                      { return OF; }
 <INITIAL>{N}{O}{T}                   { return NOT; }
-t{R}{U}{E} {
+<INITIAL>t{R}{U}{E} {
   cool_yylval.boolean = true;
   return (BOOL_CONST);
 }
-f{A}{L}{S}{E} {
+<INITIAL>f{A}{L}{S}{E} {
   cool_yylval.boolean = false;
   return (BOOL_CONST);
 }
@@ -212,7 +212,7 @@ f{A}{L}{S}{E} {
 <INITIAL>\}   { return ('}'); }
 <INITIAL><-   { return (ASSIGN); }
 <INITIAL><=   { return (LE); }
-<INITIAL>=>	  { return (DARROW); }
+<INITIAL>=>   { return (DARROW); }
 
  /*
   *  Integers, identifiers, and whitespace
