@@ -89,7 +89,7 @@ Z [Zz]
   *  Comments
   */
 
-<COMMENT,ONELINECOMMENT><<EOF>> {
+<COMMENT><<EOF>> {
   BEGIN (0);
   cool_yylval.error_msg = "EOF in comment";
   return (ERROR);
@@ -127,9 +127,10 @@ Z [Zz]
   return (ERROR);
 }
 <STRING>\\\n {      /* Escaped newline is ok */
+  string_buf[string_buf_idx++] = '\n';
   curr_lineno++;
 }
-<STRING>[\0] {      /* Null poisons the string but \ followed by 0 is ok */
+<STRING>\\\0|\0 {   /* Null poisons the string but \ followed by 0 is ok */
   null_in_string = true;
 }
 <STRING>[^\"] {
@@ -137,11 +138,11 @@ Z [Zz]
 }
 <STRING>\\. {
   switch (yytext[1]) {
-    case 'b': string_buf[string_buf_idx++] = '\b';      break;
-    case 't': string_buf[string_buf_idx++] = '\t';      break;
-    case 'n': string_buf[string_buf_idx++] = '\n';      break;
-    case 'f': string_buf[string_buf_idx++] = '\f';      break;
-    default:  string_buf[string_buf_idx++] = yytext[1]; break;
+    case 'b':  string_buf[string_buf_idx++] = '\b';      break;
+    case 't':  string_buf[string_buf_idx++] = '\t';      break;
+    case 'n':  string_buf[string_buf_idx++] = '\n';      break;
+    case 'f':  string_buf[string_buf_idx++] = '\f';      break;
+    default:   string_buf[string_buf_idx++] = yytext[1]; break;
   }
 }
 <STRING>\" {
@@ -163,7 +164,7 @@ Z [Zz]
   *  Keywords
   */
 
-<INITIAL>(?:class)                   { return CLASS; }
+<INITIAL>{C}{L}{A}{S}{S}             { return CLASS; }
 <INITIAL>{E}{L}{S}{E}                { return ELSE; }
 <INITIAL>{F}{I}                      { return FI; }
 <INITIAL>{I}{F}                      { return IF; }
@@ -210,6 +211,7 @@ f{A}{L}{S}{E} {
 <INITIAL>\{   { return ('{'); }
 <INITIAL>\}   { return ('}'); }
 <INITIAL><-   { return (ASSIGN); }
+<INITIAL><=   { return (LE); }
 <INITIAL>=>	  { return (DARROW); }
 
  /*
@@ -220,17 +222,21 @@ f{A}{L}{S}{E} {
   cool_yylval.symbol = inttable.add_string(yytext);
   return (INT_CONST);
 }
-<INITIAL>[a-z][0-9a-zA-Z]* {
+<INITIAL>[a-z][0-9a-zA-Z_]* {
   cool_yylval.symbol = idtable.add_string(yytext);
   return (OBJECTID);
 }
-<INITIAL>[A-Z][0-9a-zA-Z]* {
+<INITIAL>[A-Z][0-9a-zA-Z_]* {
   cool_yylval.symbol = idtable.add_string(yytext);
   return (TYPEID);
 }
 <INITIAL>\n                  { curr_lineno++; }
 <INITIAL>[ \f\r\t\v] ;
 
+<INITIAL>. {
+  cool_yylval.error_msg = yytext;
+  return (ERROR);
+}
 
  /*
   * Keywords are case-insensitive except for the values true and false,
