@@ -99,10 +99,4 @@ class Main inherits IO {
         pool
     };
 };
--- Just some comments
--- With (* and *)
-(* while this and this *)
-(*
- * multiline
- *)
-(*  )***** nested (* if *) else *)
+
