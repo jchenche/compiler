@@ -1,4 +1,3 @@
-%option noyywrap
 /*
  *  The scanner definition for COOL.
  */
