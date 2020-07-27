@@ -174,6 +174,8 @@
         stringtable.add_string(curr_filename)); }
     | CLASS TYPEID INHERITS TYPEID '{' feature_list '}' ';'
       { $$ = class_($2,$4,$6,stringtable.add_string(curr_filename)); }
+    | error ';'
+      { ; }
     ;
     
     /* Feature list may be empty, but no empty features in list. */
@@ -195,6 +197,8 @@
       { $$ = attr($1,$3,no_expr()); }
     | OBJECTID ':' TYPEID ASSIGN expr ';'
       { $$ = attr($1,$3,$5); }
+    | error ';'
+      { ; }
     ;
 
     formal_list :    /* empty */
@@ -229,6 +233,8 @@
       { $$ = single_Expressions($1); }
     | expr_list_block expr ';'
       { $$ = append_Expressions($1,single_Expressions($2)); }
+    | error ';'
+      { ; }
     ;
 
     let_expr_nested : IN expr %prec NESTEDLET
@@ -237,6 +243,8 @@
       { $$ = let($2,$4,$6,$7); }
     | ',' OBJECTID ':' TYPEID let_expr_nested
       { $$ = let($2,$4,no_expr(),$5); }
+    | error let_expr_nested
+      { ; }
     ;
 
     branch_list : branch
