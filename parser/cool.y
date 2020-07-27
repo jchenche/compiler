@@ -133,7 +133,6 @@
     %type <program> program
     %type <classes> class_list
     %type <class_> class
-    
     %type <features> feature_list
     %type <feature> feature
     %type <formals> formal_list
@@ -141,6 +140,8 @@
     %type <expressions> expr_list_formal
     %type <expressions> expr_list_block
     %type <expression> expr
+    %type <cases> branch_list
+    %type <case_> branch
     
     /* Precedence declarations go here. */
     %left '.'
@@ -217,6 +218,14 @@
       { $$ = append_Expressions($1,single_Expressions($2)); }
     ;
 
+    branch_list : branch
+      { $$ = single_Cases($1); }
+    | branch_list branch
+      { $$ = append_Cases($1,single_Cases($2)); }
+
+    branch : OBJECTID ':' TYPEID DARROW expr ';'
+      { $$ = branch($1,$3,$5); }
+
     expr : OBJECTID ASSIGN expr
       { $$ = assign($1,$3); }
     | expr '@' TYPEID '.' OBJECTID '(' expr_list_formal ')'
@@ -231,6 +240,8 @@
       { $$ = loop($2,$4); }
     | '{' expr_list_block '}'
       { $$ = block($2); }
+    | CASE expr OF branch_list ESAC
+      { $$ = typcase($2,$4); }
     | NEW TYPEID
       { $$ = new_($2); }
     | ISVOID expr
