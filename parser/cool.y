@@ -212,8 +212,50 @@
 
     expr : OBJECTID ASSIGN expr
       { $$ = assign($1,$3); }
+    | expr '@' TYPEID '.' OBJECTID '(' expr_list_formal ')'
+      { $$ = static_dispatch($1,$3,$5,$7); }
     | expr '.' OBJECTID '(' expr_list_formal ')'
       { $$ = dispatch($1,$3,$5); }
+    | OBJECTID '(' expr_list_formal ')'
+      { $$ = dispatch(object(idtable.add_string("self")),$1,$3); }
+    | IF expr THEN expr ELSE expr IF
+      { $$ = cond($2,$4,$6); }
+    | WHILE expr LOOP expr POOL
+      { $$ = loop($2,$4); }
+    | '{' expr_list_block '}'
+      { $$ = block($2); }
+    | NEW TYPEID
+      { $$ = new_($2); }
+    | ISVOID expr
+      { $$ = isvoid($2); }
+    | expr '+' expr
+      { $$ = plus($1,$3); }
+    | expr '-' expr
+      { $$ = sub($1,$3); }
+    | expr '*' expr
+      { $$ = mul($1,$3); }
+    | expr '/' expr
+      { $$ = divide($1,$3); }
+    | '~' expr
+      { $$ = neg($2); }
+    | expr '<' expr
+      { $$ = lt($1,$3); }
+    | expr LE expr
+      { $$ = leq($1,$3); }
+    | expr '=' expr
+      { $$ = eq($1,$3); }
+    | NOT expr
+      { $$ = comp($2); }
+    | '(' expr ')'
+      { $$ = $2; }
+    | OBJECTID
+      { $$ = object($1); }
+    | INT_CONST
+      { $$ = int_const($1); }
+    | STR_CONST
+      { $$ = string_const($1); }
+    | BOOL_CONST
+      { $$ = bool_const($1); }
     ;
 
 
