@@ -143,7 +143,7 @@
     %type <case_> branch
     
     /* Precedence declarations go here. */
-    %left RULEPREC
+    %left NESTEDLET
     %right ASSIGN
     %left NOT
     %nonassoc LE '<' '='
@@ -231,7 +231,7 @@
       { $$ = append_Expressions($1,single_Expressions($2)); }
     ;
 
-    let_expr_nested : IN expr %prec RULEPREC
+    let_expr_nested : IN expr %prec NESTEDLET
       { $$ = $2; }
     | ',' OBJECTID ':' TYPEID ASSIGN expr let_expr_nested
       { $$ = let($2,$4,$6,$7); }
