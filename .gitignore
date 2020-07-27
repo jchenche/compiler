@@ -1,5 +1,11 @@
 # Generated files
 cool-lex.*
+cool-tree.h
+cool-tree.cc
+cool-parse.*
+cool.tab.*
+tokens-lex.*
+*.output
 
 # Grading files
 *.pl
