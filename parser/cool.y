@@ -143,6 +143,7 @@
     %type <case_> branch
     
     /* Precedence declarations go here. */
+    %left RULEPREC
     %right ASSIGN
     %left NOT
     %nonassoc LE '<' '='
@@ -152,7 +153,7 @@
     %left '~'
     %left '@'
     %left '.'
-
+    
     %%
     /* 
     Save the root of the abstract syntax tree in a global variable.
@@ -218,7 +219,7 @@
       { $$ = append_Expressions($1,single_Expressions($2)); }
     ;
 
-    let_expr_nested : IN expr
+    let_expr_nested : IN expr %prec RULEPREC
       { $$ = $2; }
     | ',' OBJECTID ':' TYPEID ASSIGN expr let_expr_nested
       { $$ = let($2,$4,$6,$7); }
