@@ -143,16 +143,16 @@
     %type <case_> branch
     
     /* Precedence declarations go here. */
-    %left '.'
-    %left '@'
-    %left '~'
-    %left ISVOID
-    %left '*' '/'
-    %left '+' '-'
-    %nonassoc LE '<' '='
-    %left NOT
     %right ASSIGN
-    
+    %left NOT
+    %nonassoc LE '<' '='
+    %left '+' '-'
+    %left '*' '/'
+    %left ISVOID
+    %left '~'
+    %left '@'
+    %left '.'
+
     %%
     /* 
     Save the root of the abstract syntax tree in a global variable.
@@ -289,7 +289,6 @@
     | BOOL_CONST
       { $$ = bool_const($1); }
     ;
-
 
     /* end of grammar */
     %%
