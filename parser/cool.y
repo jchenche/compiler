@@ -137,9 +137,8 @@
     %type <feature> feature
     %type <formals> formal_list
     %type <formal> formal
-    %type <expressions> expr_list_formal
-    %type <expressions> expr_list_block
-    %type <expression> expr
+    %type <expressions> expr_list_formal expr_list_block
+    %type <expression> expr let_expr_nested
     %type <cases> branch_list
     %type <case_> branch
     
@@ -191,6 +190,7 @@
       { $$ = attr($1,$3,no_expr()); }
     | OBJECTID ':' TYPEID ASSIGN expr ';'
       { $$ = attr($1,$3,$5); }
+    ;
 
     formal_list :    /* empty */
       { $$ = nil_Formals(); }
@@ -218,13 +218,23 @@
       { $$ = append_Expressions($1,single_Expressions($2)); }
     ;
 
+    let_expr_nested : IN expr
+      { $$ = $2; }
+    | ',' OBJECTID ':' TYPEID ASSIGN expr let_expr_nested
+      { $$ = let($2,$4,$6,$7); }
+    | ',' OBJECTID ':' TYPEID let_expr_nested
+      { $$ = let($2,$4,no_expr(),$5); }
+    ;
+
     branch_list : branch
       { $$ = single_Cases($1); }
     | branch_list branch
       { $$ = append_Cases($1,single_Cases($2)); }
+    ;
 
     branch : OBJECTID ':' TYPEID DARROW expr ';'
       { $$ = branch($1,$3,$5); }
+    ;
 
     expr : OBJECTID ASSIGN expr
       { $$ = assign($1,$3); }
@@ -234,12 +244,16 @@
       { $$ = dispatch($1,$3,$5); }
     | OBJECTID '(' expr_list_formal ')'
       { $$ = dispatch(object(idtable.add_string("self")),$1,$3); }
-    | IF expr THEN expr ELSE expr IF
+    | IF expr THEN expr ELSE expr FI
       { $$ = cond($2,$4,$6); }
     | WHILE expr LOOP expr POOL
       { $$ = loop($2,$4); }
     | '{' expr_list_block '}'
       { $$ = block($2); }
+    | LET OBJECTID ':' TYPEID ASSIGN expr let_expr_nested
+      { $$ = let($2,$4,$6,$7); }
+    | LET OBJECTID ':' TYPEID let_expr_nested
+      { $$ = let($2,$4,no_expr(),$5); }
     | CASE expr OF branch_list ESAC
       { $$ = typcase($2,$4); }
     | NEW TYPEID
