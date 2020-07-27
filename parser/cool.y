@@ -133,11 +133,11 @@
     %type <program> program
     %type <classes> class_list
     %type <class_> class
-    %type <features> feature_list
+    %type <features> feature_list feature_list_non_empty
     %type <feature> feature
-    %type <formals> formal_list
+    %type <formals> formal_list formal_list_non_empty
     %type <formal> formal
-    %type <expressions> expr_list_formal expr_list_block
+    %type <expressions> expr_list_formal expr_list_formal_non_empty expr_list_block
     %type <expression> expr let_expr_nested
     %type <cases> branch_list
     %type <case_> branch
@@ -179,23 +179,33 @@
     /* Feature list may be empty, but no empty features in list. */
     feature_list :    /* empty */
       { $$ = nil_Features(); }
-    | feature ';' feature_list
-      { $$ = append_Features(single_Features($1),$3); }
+    | feature_list_non_empty
+      { $$ = $1; }
+    ;
+
+    feature_list_non_empty : feature
+      { $$ = single_Features($1); }
+    | feature_list_non_empty feature
+      { $$ = append_Features($1,single_Features($2)); }
     ;
     
-    feature : OBJECTID '(' formal_list ')' ':' TYPEID '{' expr '}'
+    feature : OBJECTID '(' formal_list ')' ':' TYPEID '{' expr '}' ';'
       { $$ = method($1,$3,$6,$8); }
-    | OBJECTID ':' TYPEID
+    | OBJECTID ':' TYPEID ';'
       { $$ = attr($1,$3,no_expr()); }
-    | OBJECTID ':' TYPEID ASSIGN expr
+    | OBJECTID ':' TYPEID ASSIGN expr ';'
       { $$ = attr($1,$3,$5); }
     ;
 
     formal_list :    /* empty */
       { $$ = nil_Formals(); }
-    | formal
+    | formal_list_non_empty
+      { $$ = $1; }
+    ;
+
+    formal_list_non_empty : formal
       { $$ = single_Formals($1); }
-    | formal_list ',' formal
+    | formal_list_non_empty ',' formal
       { $$ = append_Formals($1,single_Formals($3)); }
     ;
 
@@ -205,9 +215,13 @@
 
     expr_list_formal :       /* empty */
       { $$ = nil_Expressions(); }
-    | expr
+    | expr_list_formal_non_empty
+      { $$ = $1; }
+    ;
+
+    expr_list_formal_non_empty : expr
       { $$ = single_Expressions($1); }
-    | expr_list_formal ',' expr
+    | expr_list_formal_non_empty ',' expr
       { $$ = append_Expressions($1,single_Expressions($3)); }
     ;
 
