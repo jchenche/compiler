@@ -139,7 +139,8 @@
     %type <feature> feature
     %type <formals> formal_list
     %type <formal> formal
-    %type <expressions> expr_list
+    %type <expressions> expr_list_formal
+    %type <expressions> expr_list_block
     %type <expression> expr
     
     /* Precedence declarations go here. */
@@ -149,18 +150,18 @@
     /* 
     Save the root of the abstract syntax tree in a global variable.
     */
-    program	: class_list
+    program : class_list
       { @$ = @1; ast_root = program($1); }
     ;
     
-    class_list : class			/* single class */
+    class_list : class      /* single class */
       { $$ = single_Classes($1); parse_results = $$; }
-    | class_list class	    /* several classes */
+    | class_list class      /* several classes */
       { $$ = append_Classes($1,single_Classes($2)); parse_results = $$; }
     ;
     
     /* If no parent is specified, the class inherits from the Object class. */
-    class	: CLASS TYPEID '{' feature_list '}' ';'
+    class : CLASS TYPEID '{' feature_list '}' ';'
       { $$ = class_($2,idtable.add_string("Object"),$4,
         stringtable.add_string(curr_filename)); }
     | CLASS TYPEID INHERITS TYPEID '{' feature_list '}' ';'
@@ -168,7 +169,7 @@
     ;
     
     /* Feature list may be empty, but no empty features in list. */
-    feature_list :		/* empty */
+    feature_list :    /* empty */
       { $$ = nil_Features(); }
     | feature
       { $$ = single_Features($1); }
@@ -183,7 +184,7 @@
     | OBJECTID ':' TYPEID ASSIGN expr ';'
       { $$ = attr($1,$3,$5); }
 
-    formal_list :     /* empty */
+    formal_list :    /* empty */
       { $$ = nil_Formals(); }
     | formal
       { $$ = single_Formals($1); }
@@ -195,20 +196,25 @@
       { $$ = formal($1,$3); }
     ;
 
-    expr_list :       /* empty */
+    expr_list_formal :       /* empty */
       { $$ = nil_Expressions(); }
     | expr
       { $$ = single_Expressions($1); }
-    | expr_list ',' expr
+    | expr_list_formal ',' expr
       { $$ = append_Expressions($1,single_Expressions($3)); }
+    ;
+
+    expr_list_block : expr ';'
+      { $$ = single_Expressions($1); }
+    | expr_list_block expr ';'
+      { $$ = append_Expressions($1,single_Expressions($2)); }
     ;
 
     expr : OBJECTID ASSIGN expr
       { $$ = assign($1,$3); }
-    | BOOL_CONST
-      { $$ = bool_const($1); }
+    | expr '.' OBJECTID '(' expr_list_formal ')'
+      { $$ = dispatch($1,$3,$5); }
     ;
-
 
 
     /* end of grammar */
