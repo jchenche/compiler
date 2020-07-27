@@ -134,7 +134,6 @@
     %type <classes> class_list
     %type <class_> class
     
-    /* You will want to change the following line. */
     %type <features> feature_list
     %type <feature> feature
     %type <formals> formal_list
@@ -144,7 +143,15 @@
     %type <expression> expr
     
     /* Precedence declarations go here. */
-    
+    %left '.'
+    %left '@'
+    %left '~'
+    %left ISVOID
+    %left '*' '/'
+    %left '+' '-'
+    %nonassoc LE '<' '='
+    %left NOT
+    %right ASSIGN
     
     %%
     /* 
