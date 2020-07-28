@@ -1,1 +1,3 @@
-# Compiler for COOL.
+# Compiler for COOL
+
+Divided into 4 phases.

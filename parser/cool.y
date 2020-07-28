@@ -159,7 +159,7 @@
     Save the root of the abstract syntax tree in a global variable.
     */
     program : class_list
-      { @$ = @1; ast_root = program($1); }
+      { @$ = @1; SET_NODELOC(@1); ast_root = program($1); }
     ;
     
     class_list : class      /* single class */
@@ -170,10 +170,10 @@
     
     /* If no parent is specified, the class inherits from the Object class. */
     class : CLASS TYPEID '{' feature_list '}' ';'
-      { $$ = class_($2,idtable.add_string("Object"),$4,
+      { SET_NODELOC(@6); $$ = class_($2,idtable.add_string("Object"),$4,
         stringtable.add_string(curr_filename)); }
     | CLASS TYPEID INHERITS TYPEID '{' feature_list '}' ';'
-      { $$ = class_($2,$4,$6,stringtable.add_string(curr_filename)); }
+      { SET_NODELOC(@8); $$ = class_($2,$4,$6,stringtable.add_string(curr_filename)); }
     | error ';'
       { ; }
     ;
@@ -192,11 +192,11 @@
     ;
     
     feature : OBJECTID '(' formal_list ')' ':' TYPEID '{' expr '}' ';'
-      { $$ = method($1,$3,$6,$8); }
+      { SET_NODELOC(@10); $$ = method($1,$3,$6,$8); }
     | OBJECTID ':' TYPEID ';'
-      { $$ = attr($1,$3,no_expr()); }
+      { SET_NODELOC(@4); $$ = attr($1,$3,no_expr()); }
     | OBJECTID ':' TYPEID ASSIGN expr ';'
-      { $$ = attr($1,$3,$5); }
+      { SET_NODELOC(@6); $$ = attr($1,$3,$5); }
     | error ';'
       { ; }
     ;
@@ -214,7 +214,7 @@
     ;
 
     formal : OBJECTID ':' TYPEID
-      { $$ = formal($1,$3); }
+      { SET_NODELOC(@3); $$ = formal($1,$3); }
     ;
 
     expr_list_formal :       /* empty */
@@ -240,9 +240,9 @@
     let_expr_nested : IN expr %prec NESTEDLET
       { $$ = $2; }
     | ',' OBJECTID ':' TYPEID ASSIGN expr let_expr_nested
-      { $$ = let($2,$4,$6,$7); }
+      { SET_NODELOC(@7); $$ = let($2,$4,$6,$7); }
     | ',' OBJECTID ':' TYPEID let_expr_nested
-      { $$ = let($2,$4,no_expr(),$5); }
+      { SET_NODELOC(@5); $$ = let($2,$4,no_expr(),$5); }
     | error let_expr_nested
       { ; }
     ;
@@ -254,61 +254,61 @@
     ;
 
     branch : OBJECTID ':' TYPEID DARROW expr ';'
-      { $$ = branch($1,$3,$5); }
+      { SET_NODELOC(@6); $$ = branch($1,$3,$5); }
     ;
 
     expr : OBJECTID ASSIGN expr
-      { $$ = assign($1,$3); }
+      { SET_NODELOC(@3); $$ = assign($1,$3); }
     | expr '@' TYPEID '.' OBJECTID '(' expr_list_formal ')'
-      { $$ = static_dispatch($1,$3,$5,$7); }
+      { SET_NODELOC(@8); $$ = static_dispatch($1,$3,$5,$7); }
     | expr '.' OBJECTID '(' expr_list_formal ')'
-      { $$ = dispatch($1,$3,$5); }
+      { SET_NODELOC(@6); $$ = dispatch($1,$3,$5); }
     | OBJECTID '(' expr_list_formal ')'
-      { $$ = dispatch(object(idtable.add_string("self")),$1,$3); }
+      { SET_NODELOC(@4); $$ = dispatch(object(idtable.add_string("self")),$1,$3); }
     | IF expr THEN expr ELSE expr FI
-      { $$ = cond($2,$4,$6); }
+      { SET_NODELOC(@7); $$ = cond($2,$4,$6); }
     | WHILE expr LOOP expr POOL
-      { $$ = loop($2,$4); }
+      { SET_NODELOC(@5); $$ = loop($2,$4); }
     | '{' expr_list_block '}'
-      { $$ = block($2); }
+      { SET_NODELOC(@3); $$ = block($2); }
     | LET OBJECTID ':' TYPEID ASSIGN expr let_expr_nested
-      { $$ = let($2,$4,$6,$7); }
+      { SET_NODELOC(@7); $$ = let($2,$4,$6,$7); }
     | LET OBJECTID ':' TYPEID let_expr_nested
-      { $$ = let($2,$4,no_expr(),$5); }
+      { SET_NODELOC(@5); $$ = let($2,$4,no_expr(),$5); }
     | CASE expr OF branch_list ESAC
-      { $$ = typcase($2,$4); }
+      { SET_NODELOC(@5); $$ = typcase($2,$4); }
     | NEW TYPEID
-      { $$ = new_($2); }
+      { SET_NODELOC(@2); $$ = new_($2); }
     | ISVOID expr
-      { $$ = isvoid($2); }
+      { SET_NODELOC(@2); $$ = isvoid($2); }
     | expr '+' expr
-      { $$ = plus($1,$3); }
+      { SET_NODELOC(@3); $$ = plus($1,$3); }
     | expr '-' expr
-      { $$ = sub($1,$3); }
+      { SET_NODELOC(@3); $$ = sub($1,$3); }
     | expr '*' expr
-      { $$ = mul($1,$3); }
+      { SET_NODELOC(@3); $$ = mul($1,$3); }
     | expr '/' expr
-      { $$ = divide($1,$3); }
+      { SET_NODELOC(@3); $$ = divide($1,$3); }
     | '~' expr
-      { $$ = neg($2); }
+      { SET_NODELOC(@2); $$ = neg($2); }
     | expr '<' expr
-      { $$ = lt($1,$3); }
+      { SET_NODELOC(@3); $$ = lt($1,$3); }
     | expr LE expr
-      { $$ = leq($1,$3); }
+      { SET_NODELOC(@3); $$ = leq($1,$3); }
     | expr '=' expr
-      { $$ = eq($1,$3); }
+      { SET_NODELOC(@3); $$ = eq($1,$3); }
     | NOT expr
-      { $$ = comp($2); }
+      { SET_NODELOC(@2); $$ = comp($2); }
     | '(' expr ')'
-      { $$ = $2; }
+      { SET_NODELOC(@3); $$ = $2; }
     | OBJECTID
-      { $$ = object($1); }
+      { SET_NODELOC(@1); $$ = object($1); }
     | INT_CONST
-      { $$ = int_const($1); }
+      { SET_NODELOC(@1); $$ = int_const($1); }
     | STR_CONST
-      { $$ = string_const($1); }
+      { SET_NODELOC(@1); $$ = string_const($1); }
     | BOOL_CONST
-      { $$ = bool_const($1); }
+      { SET_NODELOC(@1); $$ = bool_const($1); }
     ;
 
     /* end of grammar */
