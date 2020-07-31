@@ -3,6 +3,8 @@ cool-lex.*
 cool-parse.*
 cool.tab.*
 tokens-lex.*
+ast-lex.*
+ast-parse.*
 *.output
 
 # Grading files
