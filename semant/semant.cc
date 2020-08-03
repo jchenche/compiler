@@ -86,6 +86,9 @@ static void initialize_constants(void)
 ClassTable::ClassTable(Classes classes) : semant_errors(0) , error_stream(cerr) {
 
     /* Fill this in */
+    install_basic_classes();
+
+    
 
 }
 
@@ -188,6 +191,12 @@ void ClassTable::install_basic_classes() {
 						      Str, 
 						      no_expr()))),
 	       filename);
+
+    // Add these classes to ast_root
+    ast_root->add_classes(Object_class)->add_classes(IO_class)
+            ->add_classes(Int_class)->add_classes(Bool_class)
+            ->add_classes(Str_class);
+
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -220,8 +229,13 @@ ostream& ClassTable::semant_error()
 {                                                 
     semant_errors++;                            
     return error_stream;
-} 
+}
 
+Program program_class::add_classes(Class_ c)
+{
+    classes = append_Classes(classes, single_Classes(c));
+    return this;
+}
 
 
 /*   This is the entry point to the semantic checker.
@@ -247,8 +261,8 @@ void program_class::semant()
     /* some semantic analysis code may go here */
 
     if (classtable->errors()) {
-	cerr << "Compilation halted due to static semantic errors." << endl;
-	exit(1);
+        cerr << "Compilation halted due to static semantic errors." << endl;
+        exit(1);
     }
 }
 
