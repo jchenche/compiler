@@ -7,9 +7,19 @@
 #include "stringtab.h"
 #include "symtab.h"
 #include "list.h"
+#include <unordered_map>
 
 #define TRUE 1
 #define FALSE 0
+
+class Node {
+private:
+	Node* parent;
+public:
+	Node() { parent = NULL; }
+	Node* get_parent() { return parent; }
+	void set_parent(Node* p) { parent = p; }
+};
 
 class ClassTable;
 typedef ClassTable *ClassTableP;
@@ -24,6 +34,9 @@ private:
   int semant_errors;
   void install_basic_classes();
   ostream& error_stream;
+  void construct_class_hierarchy(Classes classes);
+  std::unordered_map<std::string, Node*> hierarchy;
+  void check_for_cycles(Class_ class_, Node* class_node);
 
 public:
   ClassTable(Classes);
@@ -31,6 +44,7 @@ public:
   ostream& semant_error();
   ostream& semant_error(Class_ c);
   ostream& semant_error(Symbol filename, tree_node *t);
+  std::unordered_map<std::string, Node*> get_hierarchy() { return hierarchy; }
 };
 
 

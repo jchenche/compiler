@@ -47,6 +47,7 @@ typedef Cases_class *Cases;
 #define Program_EXTRAS                          \
 virtual void semant() = 0;			\
 virtual void dump_with_types(ostream&, int) = 0; \
+virtual Classes get_classes() = 0;				 \
 virtual Program add_classes(Class_) = 0;
 
 
@@ -54,16 +55,21 @@ virtual Program add_classes(Class_) = 0;
 #define program_EXTRAS                          \
 void semant();     				\
 void dump_with_types(ostream&, int);            \
+Classes get_classes();							\
 Program add_classes(Class_);
 
 #define Class__EXTRAS                   \
 virtual Symbol get_filename() = 0;      \
-virtual void dump_with_types(ostream&,int) = 0; 
+virtual void dump_with_types(ostream&,int) = 0; \
+virtual Symbol get_name() = 0; \
+virtual Symbol get_parent() = 0;
 
 
 #define class__EXTRAS                                 \
 Symbol get_filename() { return filename; }             \
-void dump_with_types(ostream&,int);                    
+void dump_with_types(ostream&,int); \
+Symbol get_name() { return name; } \
+Symbol get_parent() { return parent; }
 
 
 #define Feature_EXTRAS                                        \

@@ -88,8 +88,54 @@ ClassTable::ClassTable(Classes classes) : semant_errors(0) , error_stream(cerr) 
     /* Fill this in */
     install_basic_classes();
 
-    
+    construct_class_hierarchy(ast_root->get_classes());
 
+}
+
+void ClassTable::check_for_cycles(Class_ class_, Node* class_node) {
+    Node* temp = class_node;
+    while(temp != NULL) {
+        temp = temp->get_parent();
+        if (temp == class_node) {
+            semant_error(class_) << "Inheritance cycle detected" << endl;
+            break;
+        }
+    }
+}
+
+void ClassTable::construct_class_hierarchy(Classes classes) {
+    std::string class_name, parent_name;
+    Symbol parent_symbol;
+
+    for(int i = classes->first(); classes->more(i); i = classes->next(i)) {
+        class_name = classes->nth(i)->get_name()->get_string();
+        if (hierarchy.find(class_name) == hierarchy.end()) {
+            hierarchy[class_name] = new Node();
+        } else {
+            semant_error(classes->nth(i)) << "Redefined class " << class_name << endl;
+            return;
+        }
+    }
+
+    for(int i = classes->first(); classes->more(i); i = classes->next(i)) {
+        class_name = classes->nth(i)->get_name()->get_string();
+        parent_symbol = classes->nth(i)->get_parent();
+        parent_name = parent_symbol->get_string();
+
+        if (parent_symbol == No_class) continue; // Object class has no parent
+
+        if (parent_symbol == Int || parent_symbol == Str || parent_symbol == Bool) {
+            semant_error(classes->nth(i)) << "Can't inherit from " << parent_name << endl;
+            continue;
+        }
+
+        if (hierarchy.find(parent_name) != hierarchy.end()) {
+            hierarchy[class_name]->set_parent(hierarchy[parent_name]);
+            check_for_cycles(classes->nth(i), hierarchy[class_name]);
+        } else {
+            semant_error(classes->nth(i)) << "Non-existing class " << parent_name << endl;
+        }
+    }
 }
 
 void ClassTable::install_basic_classes() {
@@ -230,6 +276,8 @@ ostream& ClassTable::semant_error()
     semant_errors++;                            
     return error_stream;
 }
+
+Classes program_class::get_classes() { return classes; }
 
 Program program_class::add_classes(Class_ c)
 {
