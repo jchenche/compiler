@@ -15,10 +15,12 @@
 class Node {
 private:
 	Node* parent;
+	std::string class_name;
 public:
-	Node() { parent = NULL; }
+	Node(std::string name) { class_name = name; parent = NULL; }
 	Node* get_parent() { return parent; }
 	void set_parent(Node* p) { parent = p; }
+	std::string get_name() { return class_name; }
 };
 
 class ClassTable;

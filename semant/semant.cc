@@ -84,12 +84,8 @@ static void initialize_constants(void)
 
 
 ClassTable::ClassTable(Classes classes) : semant_errors(0) , error_stream(cerr) {
-
-    /* Fill this in */
     install_basic_classes();
-
     construct_class_hierarchy(ast_root->get_classes());
-
 }
 
 void ClassTable::check_for_cycles(Class_ class_, Node* class_node) {
@@ -111,7 +107,7 @@ void ClassTable::construct_class_hierarchy(Classes classes) {
     for(int i = classes->first(); classes->more(i); i = classes->next(i)) {
         class_name = classes->nth(i)->get_name()->get_string();
         if (hierarchy.find(class_name) == hierarchy.end()) {
-            hierarchy[class_name] = new Node();
+            hierarchy[class_name] = new Node(class_name);
         } else {
             semant_error(classes->nth(i)) << "Redefined class " << class_name << endl;
             cerr << "Compilation halted due to static semantic errors." << endl;
@@ -307,11 +303,9 @@ Program program_class::add_classes(Class_ c)
 void program_class::semant()
 {
     initialize_constants();
-
-    /* ClassTable constructor may do some semantic analysis */
     ClassTable *classtable = new ClassTable(classes);
 
-    /* some semantic analysis code may go here */
+    
 
     if (classtable->errors()) {
         cerr << "Compilation halted due to static semantic errors." << endl;
