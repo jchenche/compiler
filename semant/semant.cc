@@ -98,7 +98,8 @@ void ClassTable::check_for_cycles(Class_ class_, Node* class_node) {
         temp = temp->get_parent();
         if (temp == class_node) {
             semant_error(class_) << "Inheritance cycle detected" << endl;
-            break;
+            cerr << "Compilation halted due to static semantic errors." << endl;
+            exit(1);
         }
     }
 }
@@ -113,7 +114,8 @@ void ClassTable::construct_class_hierarchy(Classes classes) {
             hierarchy[class_name] = new Node();
         } else {
             semant_error(classes->nth(i)) << "Redefined class " << class_name << endl;
-            return;
+            cerr << "Compilation halted due to static semantic errors." << endl;
+            exit(1);
         }
     }
 
@@ -126,7 +128,8 @@ void ClassTable::construct_class_hierarchy(Classes classes) {
 
         if (parent_symbol == Int || parent_symbol == Str || parent_symbol == Bool) {
             semant_error(classes->nth(i)) << "Can't inherit from " << parent_name << endl;
-            continue;
+            cerr << "Compilation halted due to static semantic errors." << endl;
+            exit(1);
         }
 
         if (hierarchy.find(parent_name) != hierarchy.end()) {
@@ -134,6 +137,8 @@ void ClassTable::construct_class_hierarchy(Classes classes) {
             check_for_cycles(classes->nth(i), hierarchy[class_name]);
         } else {
             semant_error(classes->nth(i)) << "Non-existing class " << parent_name << endl;
+            cerr << "Compilation halted due to static semantic errors." << endl;
+            exit(1);
         }
     }
 }
