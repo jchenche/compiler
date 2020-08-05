@@ -48,6 +48,7 @@ static Symbol
     val;
 
 static ClassTable* ct;
+static SymbolTable<std::string, Entry>* env;
 static unordered_map<std::string, unordered_map<std::string, vector<Symbol> > > signatures;
 static unordered_map<std::string, unordered_map<std::string, Symbol> > attrs;
 
@@ -339,6 +340,8 @@ void program_class::semant() {
     ct = new ClassTable(classes);
 
     gather_decls();
+    env = new SymbolTable<std::string, Entry>();
+    typecheck();
 
     if (ct->errors()) {
         cerr << "Compilation halted due to static semantic errors." << endl;
@@ -400,3 +403,57 @@ void attr_class::gather_decls(Class_ class_) {
     }
 }
 
+void addAttrToScope(Class_ class_) {
+    std::string curr_class_name = class_->get_name()->get_string();
+    Node* curr_node = ct->get_hierarchy()[curr_class_name];
+
+    while(true) {
+        for(auto it: attrs[curr_class_name]) {
+            if (env->probe(it.first) == NULL) {
+                env->addid(it.first, it.second);
+            } else {
+                ct->semant_error(class_) << "Duplicated attr "
+                << it.first << " in " << curr_class_name << " and its descendants" << endl;
+            }
+        }
+
+        curr_node = curr_node->get_parent();
+        if (curr_node == NULL) break;
+        curr_class_name = curr_node->get_name();
+    }
+}
+
+void program_class::typecheck() {
+    for(int i = classes->first(); classes->more(i); i = classes->next(i)) {
+        classes->nth(i)->typecheck();
+    }
+}
+
+void class__class::typecheck() {
+    env->enterscope();
+    addAttrToScope(this);
+    for(int i = features->first(); features->more(i); i = features->next(i)) {
+        features->nth(i)->typecheck(this);
+    }
+    env->exitscope();
+}
+
+void method_class::typecheck(Class_ class_) {
+    std::string class_name = class_->get_name()->get_string();
+    std::string method_name = name->get_string();
+    vector<Symbol> method_sig = signatures[class_name][method_name];
+    Symbol formal_name, formal_type;
+
+    for(int i = formals->first(); formals->more(i); i = formals->next(i)) {
+        formal_name = formals->nth(i)->get_name();
+        formal_type = formals->nth(i)->get_type();
+    }
+
+
+
+
+}
+
+void attr_class::typecheck(Class_ class_) {
+
+}
