@@ -279,8 +279,8 @@ ostream& ClassTable::semant_error(Symbol filename, tree_node *t)
 }
 
 ostream& ClassTable::semant_error()                  
-{                                                 
-    semant_errors++;                            
+{
+    semant_errors++;
     return error_stream;
 }
 
@@ -347,11 +347,6 @@ void program_class::semant() {
     }
 }
 
-static vector<Symbol> find_signature() {
-    vector<Symbol> v;
-    return v;
-}
-
 static bool type_exist(Symbol type) {
     return type == SELF_TYPE || type == prim_slot
         || ct->get_hierarchy().find(type->get_string()) != ct->get_hierarchy().end();
@@ -407,7 +402,7 @@ void attr_class::gather_decls(Class_ class_) {
     }
 }
 
-void addAttrToScope(Class_ class_) {
+void add_attr_to_scope(Class_ class_) {
     std::string curr_class_name = class_->get_name()->get_string();
     Node* curr_node = ct->get_hierarchy()[curr_class_name];
 
@@ -427,6 +422,47 @@ void addAttrToScope(Class_ class_) {
     }
 }
 
+static void check_overridden_method_sig(Class_ class_, std::string class_name, std::string method_name) {
+    std::string curr_class_name = class_name;
+    Node* curr_node = ct->get_hierarchy()[curr_class_name];
+    bool found_method = false;
+    vector<Symbol> old_signature;
+
+    while(true) {
+        if (signatures[curr_class_name].find(method_name) != signatures[curr_class_name].end()) {
+            if (found_method) {
+                if (old_signature != signatures[curr_class_name][method_name]) {
+                    ct->semant_error(class_) << "Method " << method_name << " in " << curr_class_name
+                    << " is overriden by " << method_name << " in " << class_name
+                    << " with a different signature" << endl;
+                }
+                break;
+            }
+            found_method = true;
+            old_signature = signatures[curr_class_name][method_name];
+        }
+        curr_node = curr_node->get_parent();
+        if (curr_node == NULL) break;
+        curr_class_name = curr_node->get_name();
+    }
+}
+
+static vector<Symbol> get_signature(std::string class_name, std::string method_name) {
+    std::string curr_class_name = class_name;
+    Node* curr_node = ct->get_hierarchy()[curr_class_name];
+
+    while(true) {
+        if (signatures[curr_class_name].find(method_name) != signatures[curr_class_name].end()) {
+            return signatures[curr_class_name][method_name];
+        }
+        curr_node = curr_node->get_parent();
+        if (curr_node == NULL) break;
+        curr_class_name = curr_node->get_name();
+    }
+
+    return {};
+}
+
 void program_class::typecheck() {
     for(int i = classes->first(); classes->more(i); i = classes->next(i)) {
         classes->nth(i)->typecheck();
@@ -435,7 +471,7 @@ void program_class::typecheck() {
 
 void class__class::typecheck() {
     env->enterscope();
-    addAttrToScope(this);
+    add_attr_to_scope(this);
     for(int i = features->first(); features->more(i); i = features->next(i)) {
         features->nth(i)->typecheck(this);
     }
@@ -445,7 +481,8 @@ void class__class::typecheck() {
 void method_class::typecheck(Class_ class_) {
     std::string class_name = class_->get_name()->get_string();
     std::string method_name = name->get_string();
-    vector<Symbol> method_sig = signatures[class_name][method_name];
+    check_overridden_method_sig(class_, class_name, method_name);
+    vector<Symbol> method_sig = get_signature(class_name, method_name);
     Symbol formal_name, formal_type;
 
     // cout << "--------------" << endl;
