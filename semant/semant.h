@@ -8,6 +8,10 @@
 #include "symtab.h"
 #include "list.h"
 #include <unordered_map>
+#include <vector>
+
+using std::unordered_map;
+using std::vector;
 
 #define TRUE 1
 #define FALSE 0
@@ -37,7 +41,7 @@ private:
   void install_basic_classes();
   ostream& error_stream;
   void construct_class_hierarchy(Classes classes);
-  std::unordered_map<std::string, Node*> hierarchy;
+  unordered_map<std::string, Node*> hierarchy;
   void check_for_cycles(Class_ class_, Node* class_node);
 
 public:
@@ -46,7 +50,7 @@ public:
   ostream& semant_error();
   ostream& semant_error(Class_ c);
   ostream& semant_error(Symbol filename, tree_node *t);
-  std::unordered_map<std::string, Node*> get_hierarchy() { return hierarchy; }
+  unordered_map<std::string, Node*> get_hierarchy() { return hierarchy; }
 };
 
 

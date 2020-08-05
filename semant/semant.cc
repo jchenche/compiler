@@ -46,6 +46,11 @@ static Symbol
     substr,
     type_name,
     val;
+
+static ClassTable* ct;
+static unordered_map<std::string, unordered_map<std::string, vector<Symbol> > > signatures;
+static unordered_map<std::string, unordered_map<std::string, Symbol> > attrs;
+
 //
 // Initializing the predefined symbols.
 //
@@ -280,12 +285,41 @@ ostream& ClassTable::semant_error()
 
 Classes program_class::get_classes() { return classes; }
 
-Program program_class::add_classes(Class_ c)
-{
+Program program_class::add_classes(Class_ c) {
     classes = append_Classes(classes, single_Classes(c));
     return this;
 }
 
+static void gather_decls() {
+    Classes classes = ast_root->get_classes();
+    Features features;
+    for(int i = classes->first(); classes->more(i); i = classes->next(i)) {
+        features = classes->nth(i)->get_features();
+        for(int j = features->first(); features->more(j); j = features->next(j)) {
+            features->nth(j)->gather_decls(classes->nth(i));
+        }
+    }
+
+    if (semant_debug) {
+        for(auto it: attrs) {
+            for(auto it2: it.second) {
+                cout << it2.first << " -> " << it2.second << endl;
+            }
+            cout << endl;
+        }
+        cout << "--------------------------" << endl;
+        for(auto it: signatures) {
+            for(auto it2: it.second) {
+                cout << it2.first << "(";
+                for(auto v: it2.second) {
+                    cout << v << ", ";
+                }
+                cout << ")" << endl;
+            }
+            cout << endl;
+        }
+    }
+}
 
 /*   This is the entry point to the semantic checker.
 
@@ -300,17 +334,69 @@ Program program_class::add_classes(Class_ c)
      errors. Part 2) can be done in a second stage, when you want
      to build mycoolc.
  */
-void program_class::semant()
-{
+void program_class::semant() {
     initialize_constants();
-    ClassTable *classtable = new ClassTable(classes);
+    ct = new ClassTable(classes);
 
-    
+    gather_decls();
 
-    if (classtable->errors()) {
+    if (ct->errors()) {
         cerr << "Compilation halted due to static semantic errors." << endl;
         exit(1);
     }
 }
 
+static vector<Symbol> find_signature() {
+    vector<Symbol> v;
+    return v;
+}
+
+static bool type_exist(Symbol type) {
+    return type == SELF_TYPE || type == prim_slot
+        || ct->get_hierarchy().find(type->get_string()) != ct->get_hierarchy().end();
+}
+
+void method_class::gather_decls(Class_ class_) {
+    std::string class_name = class_->get_name()->get_string();
+    std::string method_name = name->get_string();
+    Symbol type;
+
+    if (signatures[class_name].find(method_name) == signatures[class_name].end()) {
+
+        for(int i = formals->first(); formals->more(i); i = formals->next(i)) {
+            type = formals->nth(i)->get_type();
+            signatures[class_name][method_name].push_back(type);
+            if (!type_exist(type)) {
+                ct->semant_error(class_) << "Class "
+                << type << " is not defined" << endl;
+            }
+        }
+
+        signatures[class_name][method_name].push_back(return_type);
+        if (!type_exist(return_type)) {
+            ct->semant_error(class_) << "Class "
+            << return_type << " is not defined" << endl;
+        }
+        
+    } else {
+        ct->semant_error(class_) << "Duplicated method "
+        << method_name << " in " << class_name << endl;
+    }
+}
+
+void attr_class::gather_decls(Class_ class_) {
+    std::string class_name = class_->get_name()->get_string();
+    std::string attr_name = name->get_string();
+
+    if (attrs[class_name].find(attr_name) == attrs[class_name].end()) {
+        attrs[class_name][attr_name] = type_decl;
+        if (!type_exist(type_decl)) {
+            ct->semant_error(class_) << "Class "
+            << type_decl << " is not defined" << endl;
+        }        
+    } else {
+        ct->semant_error(class_) << "Duplicated attr "
+        << attr_name << " in " << class_name << endl;
+    }
+}
 
