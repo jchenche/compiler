@@ -338,11 +338,9 @@ static void gather_decls() {
 void program_class::semant() {
     initialize_constants();
     ct = new ClassTable(classes);
-
     gather_decls();
     env = new SymbolTable<std::string, Entry>();
     typecheck();
-
     if (ct->errors()) {
         cerr << "Compilation halted due to static semantic errors." << endl;
         exit(1);
@@ -368,15 +366,19 @@ void method_class::gather_decls(Class_ class_) {
 
         for(int i = formals->first(); formals->more(i); i = formals->next(i)) {
             type = formals->nth(i)->get_type();
-            signatures[class_name][method_name].push_back(type);
-            if (!type_exist(type)) {
+            if (type_exist(type)) {
+                signatures[class_name][method_name].push_back(type);
+            } else {
+                signatures[class_name][method_name].push_back(Object);
                 ct->semant_error(class_) << "Class "
                 << type << " is not defined" << endl;
             }
         }
-
-        signatures[class_name][method_name].push_back(return_type);
-        if (!type_exist(return_type)) {
+        
+        if (type_exist(return_type)) {
+            signatures[class_name][method_name].push_back(return_type);
+        } else {
+            signatures[class_name][method_name].push_back(Object);
             ct->semant_error(class_) << "Class "
             << return_type << " is not defined" << endl;
         }
@@ -392,11 +394,13 @@ void attr_class::gather_decls(Class_ class_) {
     std::string attr_name = name->get_string();
 
     if (attrs[class_name].find(attr_name) == attrs[class_name].end()) {
-        attrs[class_name][attr_name] = type_decl;
-        if (!type_exist(type_decl)) {
+        if (type_exist(type_decl)) {
+            attrs[class_name][attr_name] = type_decl;
+        } else {
+            attrs[class_name][attr_name] = Object;
             ct->semant_error(class_) << "Class "
             << type_decl << " is not defined" << endl;
-        }        
+        }
     } else {
         ct->semant_error(class_) << "Duplicated attr "
         << attr_name << " in " << class_name << endl;
@@ -444,9 +448,17 @@ void method_class::typecheck(Class_ class_) {
     vector<Symbol> method_sig = signatures[class_name][method_name];
     Symbol formal_name, formal_type;
 
+    // cout << "--------------" << endl;
+    // cout << "in " << class_name << " of " << method_name << endl;
+    // for(auto v: method_sig) {
+    //     cout << v << " ";
+    // }
+    // cout << "\n--------------" << endl;
+
     for(int i = formals->first(); formals->more(i); i = formals->next(i)) {
         formal_name = formals->nth(i)->get_name();
         formal_type = formals->nth(i)->get_type();
+
     }
 
 

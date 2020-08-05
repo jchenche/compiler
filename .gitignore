@@ -7,7 +7,7 @@ ast-lex.*
 ast-parse.*
 *.output
 
-# Grading files
+# Grading and testing files
 *.pl
 grading/
 
