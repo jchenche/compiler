@@ -87,8 +87,6 @@ static void initialize_constants(void)
     val         = idtable.add_string("_val");
 }
 
-
-
 ClassTable::ClassTable(Classes classes) : semant_errors(0) , error_stream(cerr) {
     install_basic_classes();
     construct_class_hierarchy(ast_root->get_classes());
@@ -287,7 +285,7 @@ ostream& ClassTable::semant_error()
 Classes program_class::get_classes() { return classes; }
 
 Program program_class::add_classes(Class_ c) {
-    classes = append_Classes(classes, single_Classes(c));
+    classes = append_Classes(single_Classes(c), classes);
     return this;
 }
 
