@@ -5,10 +5,11 @@ class Main {
 
     x: Int;
     y: NONEXISTING;
-    x: Int <- foo(3, "hi");
+    x: B <- foo(3, "hi");
+    i: Int;
 
-    foo(param: Int, param: String) : Int {
-        param
+    foo(param: String) : B {
+        if true then new A else new B fi
     };
 
     main() : Object {
@@ -28,7 +29,7 @@ class B inherits C {};
 
 class C {
     y: Int <- 33;
-    foo(x: Int) : Object {
+    foo() : Object {
         let x: Int <- 3, x: String <- "Hi" in x
     };
 };

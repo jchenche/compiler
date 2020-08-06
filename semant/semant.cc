@@ -362,25 +362,31 @@ void method_class::gather_decls(Class_ class_) {
         for(int i = formals->first(); formals->more(i); i = formals->next(i)) {
             type = formals->nth(i)->get_type();
             if (type_exist(type)) {
-                signatures[class_name][method_name].push_back(type);
+                if (type != SELF_TYPE) {
+                    signatures[class_name][method_name].push_back(type);
+                } else {
+                    signatures[class_name][method_name].push_back(Object);
+                    ct->semant_error(class_) << "Formal parameters can't have type SELF_TYPE" << endl;
+                }
             } else {
                 signatures[class_name][method_name].push_back(Object);
-                ct->semant_error(class_) << "Class "
-                << type << " is not defined" << endl;
+                ct->semant_error(class_) << "Class " << type << " is not defined" << endl;
             }
         }
         
         if (type_exist(return_type)) {
-            signatures[class_name][method_name].push_back(return_type);
+            if (return_type == SELF_TYPE) {
+                signatures[class_name][method_name].push_back(class_->get_name());
+            } else {
+                signatures[class_name][method_name].push_back(return_type);
+            }
         } else {
             signatures[class_name][method_name].push_back(Object);
-            ct->semant_error(class_) << "Class "
-            << return_type << " is not defined" << endl;
+            ct->semant_error(class_) << "Class " << return_type << " is not defined" << endl;
         }
         
     } else {
-        ct->semant_error(class_) << "Duplicated method "
-        << method_name << " in " << class_name << endl;
+        ct->semant_error(class_) << "Duplicated method " << method_name << " in " << class_name << endl;
     }
 }
 
@@ -390,15 +396,17 @@ void attr_class::gather_decls(Class_ class_) {
 
     if (attrs[class_name].find(attr_name) == attrs[class_name].end()) {
         if (type_exist(type_decl)) {
-            attrs[class_name][attr_name] = type_decl;
+            if (type_decl == SELF_TYPE) {
+                attrs[class_name][attr_name] = class_->get_name();
+            } else {
+                attrs[class_name][attr_name] = type_decl;
+            }
         } else {
             attrs[class_name][attr_name] = Object;
-            ct->semant_error(class_) << "Class "
-            << type_decl << " is not defined" << endl;
+            ct->semant_error(class_) << "Class " << type_decl << " is not defined" << endl;
         }
     } else {
-        ct->semant_error(class_) << "Duplicated attr "
-        << attr_name << " in " << class_name << endl;
+        ct->semant_error(class_) << "Duplicated attr " << attr_name << " in " << class_name << endl;
     }
 }
 
@@ -475,6 +483,40 @@ static bool is_subtype(Symbol t1, Symbol t2) {
     return false;
 }
 
+static std::string least_common_ancestor(std::string class1, std::string class2) {
+    vector<Node*> nodes1;
+    vector<Node*> nodes2;
+    
+    Node* curr_node = ct->get_hierarchy()[class1];
+    while(curr_node != NULL) {
+        nodes1.push_back(curr_node);
+        curr_node = curr_node->get_parent();
+    }
+
+    curr_node = ct->get_hierarchy()[class2];
+    while(curr_node != NULL) {
+        nodes2.push_back(curr_node);
+        curr_node = curr_node->get_parent();
+    }
+
+    int i = nodes1.size() - 1;
+    int j = nodes2.size() - 1;
+    while(i >= 0 && j >= 0) {
+        if (nodes1.at(i) != nodes2.at(j)) break;
+        i--;
+        j--;
+    }
+
+    return nodes1.at(i + 1)->get_name();
+}
+
+static char* to_compatible_string(std::string s) {
+    char* new_s = new char[s.size() + 1];
+    strncpy(new_s, s.c_str(), s.size());
+    new_s[s.size()] = '\0';
+    return new_s;
+}
+
 void program_class::typecheck() {
     for(int i = classes->first(); classes->more(i); i = classes->next(i)) {
         classes->nth(i)->typecheck();
@@ -525,27 +567,335 @@ void method_class::typecheck(Class_ class_) {
         }
     }
 
-    // Symbol t1 = expr->typecheck(class_);
+    Symbol t1 = expr->typecheck(class_);
     Symbol t2 = method_sig.at(size);
-    // if (return_type == SELF_TYPE) t2 = class_->get_name();
-    // is_subtype(t1, t2);
+    // if (t2 == SELF_TYPE) t2 = class_->get_name();
+
+    if (t1 != No_type && !is_subtype(t1, t2)) {
+        ct->semant_error(class_) << t1 << " is not a subtype of " << t2 << endl;
+    }
 
     env->exitscope();
 }
 
 void attr_class::typecheck(Class_ class_) {
     env->enterscope();
-    env->addid(self->get_string(), class_->get_name());
 
     Symbol t1 = env->lookup(name->get_string());
-    // Symbol t2 = init->typecheck(class_);
+    // if (t1 == SELF_TYPE) t1 = class_->get_name();
+    env->addid(self->get_string(), class_->get_name());
+    Symbol t2 = init->typecheck(class_);
 
-    // if (t2 != No_type) {
-    //     is_subtype(t1, t2);
-    // }
+    if (t2 != No_type && !is_subtype(t1, t2)) {
+        ct->semant_error(class_) << t1 << " is not a subtype of " << t2 << endl;
+    }
 
     env->exitscope();
 }
 
+Symbol no_expr_class::typecheck(Class_ class_) {
+    return set_type(No_type)->get_type();
+}
 
+Symbol object_class::typecheck(Class_ class_) {
+    Symbol t1 = env->lookup(name->get_string());
+    if (t1 == NULL) {
+        ct->semant_error(class_) << t1 << " is not defined in scope" << endl;
+        return set_type(Object)->get_type();
+    }
+    return set_type(t1)->get_type();
+}
 
+Symbol assign_class::typecheck(Class_ class_) {
+    Symbol t1 = env->lookup(name->get_string());
+    if (t1 == NULL) {
+        ct->semant_error(class_) << t1 << " is not defined in scope" << endl;
+        return set_type(Object)->get_type();
+    }
+
+    Symbol t2 = expr->typecheck(class_);
+    if (!is_subtype(t2, t1)) {
+        ct->semant_error(class_) << t2 << " is not a subtype of " << t1 << endl;
+        return set_type(Object)->get_type();
+    }
+
+    return set_type(t2)->get_type();
+}
+
+Symbol bool_const_class::typecheck(Class_ class_) {
+    return set_type(Bool)->get_type();
+}
+
+Symbol int_const_class::typecheck(Class_ class_) {
+    return set_type(Int)->get_type();
+}
+
+Symbol string_const_class::typecheck(Class_ class_) {
+    return set_type(Str)->get_type();
+}
+
+Symbol new__class::typecheck(Class_ class_) {
+    if (!type_exist(type_name)) {
+        ct->semant_error(class_) << "Type " << type_name << " is not defined" << endl;
+        return set_type(Object)->get_type();
+    }
+    Symbol t1 = type_name;
+    if (t1 == SELF_TYPE) t1 = class_->get_name();
+    return set_type(t1)->get_type();
+}
+
+Symbol dispatch_class::typecheck(Class_ class_) {
+    std::string method_name = name->get_string();
+    vector<Symbol> t;
+
+    t.push_back(expr->typecheck(class_));
+    for(int i = actual->first(); actual->more(i); i = actual->next(i)) {
+        t.push_back(actual->nth(i)->typecheck(class_));
+    }
+
+    vector<Symbol> method_sig = get_signature(t.at(0)->get_string(), method_name);
+    int param_size = method_sig.size();
+    int arg_size = t.size();
+
+    if (method_sig.empty()) {
+        ct->semant_error(class_) << "Method " << method_name << " is not defined in "
+        << class_->get_name() << " or any of its ancestors" << endl;
+        return set_type(Object)->get_type();
+    }
+
+    if (arg_size != param_size) {
+        ct->semant_error(class_) << "Method " << method_name <<
+        " is called with wrong number of arguments" << endl;
+        return set_type(Object)->get_type();
+    }
+
+    for(int i = 1; i < arg_size; ++i) {
+        if (!is_subtype(t.at(i), method_sig.at(i - 1))) {
+            ct->semant_error(class_) << t.at(i)
+            << " is not a subtype of " << method_sig.at(i - 1) << endl;
+            return set_type(Object)->get_type();
+        }
+    }
+
+    return set_type(method_sig.at(param_size - 1))->get_type();
+}
+
+Symbol static_dispatch_class::typecheck(Class_ class_) {
+    std::string method_name = name->get_string();
+    vector<Symbol> t;
+
+    t.push_back(expr->typecheck(class_));
+    for(int i = actual->first(); actual->more(i); i = actual->next(i)) {
+        t.push_back(actual->nth(i)->typecheck(class_));
+    }
+
+    if (!is_subtype(t.at(0), type_name)) {
+        ct->semant_error(class_) << t.at(0) << " is not a subtype of " << type_name << endl;
+        return set_type(Object)->get_type();
+    }
+
+    vector<Symbol> method_sig = get_signature(type_name->get_string(), method_name);
+    int param_size = method_sig.size();
+    int arg_size = t.size();
+
+    if (method_sig.empty()) {
+        ct->semant_error(class_) << "Method " << method_name <<
+        " is called with wrong number of arguments" << endl;
+        return set_type(Object)->get_type();
+    }
+
+    if (arg_size != param_size) {
+        ct->semant_error(class_) << "Method argument and paramater number mismatch for "
+        << method_name << endl;
+        return set_type(Object)->get_type();
+    }
+
+    for(int i = 1; i < arg_size; ++i) {
+        if (!is_subtype(t.at(i), method_sig.at(i - 1))) {
+            ct->semant_error(class_) << t.at(i)
+            << " is not a subtype of " << method_sig.at(i - 1) << endl;
+            return set_type(Object)->get_type();
+        }
+    }
+
+    return set_type(method_sig.at(param_size - 1))->get_type();
+}
+
+Symbol cond_class::typecheck(Class_ class_) {
+    Symbol t1 = pred->typecheck(class_);
+    if (t1 != Bool) {
+        ct->semant_error(class_) << "The if condition doesn't have type Bool" << endl;
+        return set_type(Object)->get_type();
+    }
+    Symbol t2 = then_exp->typecheck(class_);
+    Symbol t3 = else_exp->typecheck(class_);
+    std::string lca_class_name = least_common_ancestor(t2->get_string(), t3->get_string());
+    return set_type(idtable.lookup_string(to_compatible_string(lca_class_name)))->get_type();
+}
+
+Symbol block_class::typecheck(Class_ class_) {
+    Symbol t;
+    for(int i = body->first(); body->more(i); i = body->next(i)) {
+        t = body->nth(i)->typecheck(class_);
+    }
+    return set_type(t)->get_type();
+}
+
+Symbol let_class::typecheck(Class_ class_) {
+    if (!type_exist(type_decl)) {
+        ct->semant_error(class_) << "Type " << type_decl << " is not defined" << endl;
+        return set_type(Object)->get_type();
+    }
+    Symbol t0 = type_decl;
+    if (t0 == SELF_TYPE) t0 = class_->get_name();
+
+    Symbol t1 = init->typecheck(class_);
+    if (t1 != No_type && !is_subtype(t1, t0)) {
+        ct->semant_error(class_) << t1 << " is not a subtype of " << t0 << endl;
+        return set_type(Object)->get_type();
+    }
+
+    env->enterscope();
+    env->addid(identifier->get_string(), t0);
+    Symbol t2 = body->typecheck(class_);
+    env->exitscope();
+
+    return set_type(t2)->get_type();
+}
+
+Symbol typcase_class::typecheck(Class_ class_) {
+    Symbol t0 = expr->typecheck(class_);
+    vector<Symbol> t;
+    for(int i = cases->first(); cases->more(i); i = cases->next(i)) {
+        t.push_back(cases->nth(i)->typecheck(class_));
+    }
+
+    std::string lca_class_name = t.at(0)->get_string();
+    int size = t.size();
+    for(int i = 1; i < size; ++i) {
+        lca_class_name = least_common_ancestor(lca_class_name, t.at(i)->get_string());
+    }
+    return set_type(idtable.lookup_string(to_compatible_string(lca_class_name)))->get_type();
+}
+
+Symbol branch_class::typecheck(Class_ class_) {
+    if (!type_exist(type_decl)) {
+        ct->semant_error(class_) << "Type " << type_decl << " is not defined" << endl;
+        return Object;
+    }
+    if (type_decl == SELF_TYPE) {
+        ct->semant_error(class_) << "SELF_TYPE can't be a declared type in case expressions" << endl;
+        return Object;
+    }
+    env->enterscope();
+    env->addid(name->get_string(), type_decl);
+    Symbol t = expr->typecheck(class_);
+    env->exitscope();
+    return t;
+}
+
+Symbol loop_class::typecheck(Class_ class_) {
+    Symbol t1 = pred->typecheck(class_);
+    if (t1 != Bool) {
+        ct->semant_error(class_) << "The while condition doesn't have type Bool" << endl;
+        return set_type(Object)->get_type();
+    }
+    Symbol t2 = body->typecheck(class_);
+    return set_type(Object)->get_type();
+}
+
+Symbol isvoid_class::typecheck(Class_ class_) {
+    Symbol t = e1->typecheck(class_);
+    return set_type(Bool)->get_type();
+}
+
+Symbol comp_class::typecheck(Class_ class_) {
+    Symbol t1 = e1->typecheck(class_);
+    if (t1 != Bool) {
+        ct->semant_error(class_) << "The operand of NOT must have type Bool" << endl;
+        return set_type(Object)->get_type();
+    }
+    return set_type(Bool)->get_type();
+}
+
+Symbol lt_class::typecheck(Class_ class_) {
+    Symbol t1 = e1->typecheck(class_);
+    Symbol t2 = e2->typecheck(class_);
+    if (t1 != Int || t2 != Int) {
+        ct->semant_error(class_) << "The operands of < must of type Int" << endl;
+        return set_type(Object)->get_type();
+    }
+    return set_type(Bool)->get_type();
+}
+
+Symbol leq_class::typecheck(Class_ class_) {
+    Symbol t1 = e1->typecheck(class_);
+    Symbol t2 = e2->typecheck(class_);
+    if (t1 != Int || t2 != Int) {
+        ct->semant_error(class_) << "The operands of <= must of type Int" << endl;
+        return set_type(Object)->get_type();
+    }
+    return set_type(Bool)->get_type();
+}
+
+Symbol neg_class::typecheck(Class_ class_) {
+    Symbol t1 = e1->typecheck(class_);
+    if (t1 != Int) {
+        ct->semant_error(class_) << "The operand of ~ must have type Int" << endl;
+        return set_type(Object)->get_type();
+    }
+    return set_type(Int)->get_type();
+}
+
+Symbol plus_class::typecheck(Class_ class_) {
+    Symbol t1 = e1->typecheck(class_);
+    Symbol t2 = e2->typecheck(class_);
+    if (t1 != Int || t2 != Int) {
+        ct->semant_error(class_) << "The operands of + must of type Int" << endl;
+        return set_type(Object)->get_type();
+    }
+    return set_type(Int)->get_type();
+}
+
+Symbol sub_class::typecheck(Class_ class_) {
+    Symbol t1 = e1->typecheck(class_);
+    Symbol t2 = e2->typecheck(class_);
+    if (t1 != Int || t2 != Int) {
+        ct->semant_error(class_) << "The operands of - must of type Int" << endl;
+        return set_type(Object)->get_type();
+    }
+    return set_type(Int)->get_type();
+}
+
+Symbol mul_class::typecheck(Class_ class_) {
+    Symbol t1 = e1->typecheck(class_);
+    Symbol t2 = e2->typecheck(class_);
+    if (t1 != Int || t2 != Int) {
+        ct->semant_error(class_) << "The operands of * must of type Int" << endl;
+        return set_type(Object)->get_type();
+    }
+    return set_type(Int)->get_type();
+}
+
+Symbol divide_class::typecheck(Class_ class_) {
+    Symbol t1 = e1->typecheck(class_);
+    Symbol t2 = e2->typecheck(class_);
+    if (t1 != Int || t2 != Int) {
+        ct->semant_error(class_) << "The operands of / must of type Int" << endl;
+        return set_type(Object)->get_type();
+    }
+    return set_type(Int)->get_type();
+}
+
+Symbol eq_class::typecheck(Class_ class_) {
+    Symbol t1 = e1->typecheck(class_);
+    Symbol t2 = e2->typecheck(class_);
+    if (t1 == Int || t1 == Str || t1 == Bool || t2 == Int || t2 == Str || t2 == Bool) {
+        if (t1 != t2) {
+            ct->semant_error(class_) <<
+            "If one of the operands has type Int, Str, or Bool, then they have to be the same" << endl;
+            return set_type(Object)->get_type();
+        }
+    }
+    return set_type(Bool)->get_type();
+}
