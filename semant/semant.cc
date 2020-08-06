@@ -463,6 +463,18 @@ static vector<Symbol> get_signature(std::string class_name, std::string method_n
     return {};
 }
 
+static bool is_subtype(Symbol t1, Symbol t2) {
+    std::string curr_class_name = t1->get_string();
+    std::string target_class_name = t2->get_string();
+    Node* curr_node = ct->get_hierarchy()[curr_class_name];
+    Node* target_node = ct->get_hierarchy()[target_class_name];
+    while(curr_node != NULL) {
+        if (curr_node == target_node) return true;
+        curr_node = curr_node->get_parent();
+    }
+    return false;
+}
+
 void program_class::typecheck() {
     for(int i = classes->first(); classes->more(i); i = classes->next(i)) {
         classes->nth(i)->typecheck();
@@ -483,26 +495,57 @@ void method_class::typecheck(Class_ class_) {
     std::string method_name = name->get_string();
     check_overridden_method_sig(class_, class_name, method_name);
     vector<Symbol> method_sig = get_signature(class_name, method_name);
-    Symbol formal_name, formal_type;
+    std::string formal_name;
+    Symbol formal_type;
 
-    // cout << "--------------" << endl;
-    // cout << "in " << class_name << " of " << method_name << endl;
-    // for(auto v: method_sig) {
-    //     cout << v << " ";
-    // }
-    // cout << "\n--------------" << endl;
-
-    for(int i = formals->first(); formals->more(i); i = formals->next(i)) {
-        formal_name = formals->nth(i)->get_name();
-        formal_type = formals->nth(i)->get_type();
-
+    if (semant_debug) {
+        cout << "-----------------" << endl;
+        cout << "in " << class_name << " of " << method_name << endl;
+        for(auto v: method_sig) {
+            cout << v << " ";
+        }
+        cout << endl;
     }
 
+    env->enterscope();
+    env->addid(self->get_string(), class_->get_name());
 
+    int size = method_sig.size() - 1;
+    assert(size == formals->len());
 
+    int i, j;
+    for(i = formals->first(), j = 0; formals->more(i) && j < size; i = formals->next(i), ++j) {
+        formal_name = formals->nth(i)->get_name()->get_string();
+        formal_type = method_sig.at(j);
+        if (env->probe(formal_name) == NULL) {
+            env->addid(formal_name, formal_type);
+        } else {
+            ct->semant_error(class_) << "Duplicated formal parameter "
+            << formal_name << " in " << method_name << endl;
+        }
+    }
 
+    // Symbol t1 = expr->typecheck(class_);
+    Symbol t2 = method_sig.at(size);
+    // if (return_type == SELF_TYPE) t2 = class_->get_name();
+    // is_subtype(t1, t2);
+
+    env->exitscope();
 }
 
 void attr_class::typecheck(Class_ class_) {
+    env->enterscope();
+    env->addid(self->get_string(), class_->get_name());
 
+    Symbol t1 = env->lookup(name->get_string());
+    // Symbol t2 = init->typecheck(class_);
+
+    // if (t2 != No_type) {
+    //     is_subtype(t1, t2);
+    // }
+
+    env->exitscope();
 }
+
+
+
