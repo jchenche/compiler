@@ -108,6 +108,8 @@ void ClassTable::construct_class_hierarchy(Classes classes) {
     std::string class_name, parent_name;
     Symbol parent_symbol;
 
+    hierarchy[SELF_TYPE->get_string()] = new Node(SELF_TYPE->get_string());
+
     for(int i = classes->first(); classes->more(i); i = classes->next(i)) {
         class_name = classes->nth(i)->get_name()->get_string();
         if (hierarchy.find(class_name) == hierarchy.end()) {
@@ -126,7 +128,8 @@ void ClassTable::construct_class_hierarchy(Classes classes) {
 
         if (parent_symbol == No_class) continue; // Object class has no parent
 
-        if (parent_symbol == Int || parent_symbol == Str || parent_symbol == Bool) {
+        if (parent_symbol == Int || parent_symbol == Str ||
+            parent_symbol == Bool || parent_symbol == SELF_TYPE) {
             semant_error(classes->nth(i)) << "Can't inherit from " << parent_name << endl;
             cerr << "Compilation halted due to static semantic errors." << endl;
             exit(1);
@@ -348,7 +351,7 @@ void program_class::semant() {
 }
 
 static bool type_exist(Symbol type) {
-    return type == SELF_TYPE || type == prim_slot
+    return type == prim_slot
         || ct->get_hierarchy().find(type->get_string()) != ct->get_hierarchy().end();
 }
 
@@ -373,7 +376,7 @@ void method_class::gather_decls(Class_ class_) {
                 ct->semant_error(class_) << "Class " << type << " is not defined" << endl;
             }
         }
-        
+
         if (type_exist(return_type)) {
             if (return_type == SELF_TYPE) {
                 signatures[class_name][method_name].push_back(class_->get_name());
@@ -384,7 +387,7 @@ void method_class::gather_decls(Class_ class_) {
             signatures[class_name][method_name].push_back(Object);
             ct->semant_error(class_) << "Class " << return_type << " is not defined" << endl;
         }
-        
+
     } else {
         ct->semant_error(class_) << "Duplicated method " << method_name << " in " << class_name << endl;
     }
@@ -551,7 +554,10 @@ void method_class::typecheck(Class_ class_) {
     for(i = formals->first(), j = 0; formals->more(i) && j < size; i = formals->next(i), ++j) {
         formal_name = formals->nth(i)->get_name()->get_string();
         formal_type = method_sig.at(j);
-        if (env->probe(formal_name) == NULL) {
+
+        if (formals->nth(i)->get_name() == self) {
+            ct->semant_error(class_) << "self cannot be the name of a formal parameter" << endl;
+        } else if (env->probe(formal_name) == NULL) {
             env->addid(formal_name, formal_type);
         } else {
             ct->semant_error(class_) << "Duplicated formal parameter "
@@ -573,8 +579,13 @@ void method_class::typecheck(Class_ class_) {
 void attr_class::typecheck(Class_ class_) {
     env->enterscope();
 
-    Symbol t0 = env->lookup(name->get_string());
+    if (name == self) {
+        ct->semant_error(class_) << "self cannot be the name of an attribute" << endl;
+    }
+
+    Symbol t0 = type_decl;
     // if (t0 == SELF_TYPE) t0 = class_->get_name();
+
     env->addid(self->get_string(), class_->get_name());
     Symbol t1 = init->typecheck(class_);
 
@@ -599,6 +610,11 @@ Symbol object_class::typecheck(Class_ class_) {
 }
 
 Symbol assign_class::typecheck(Class_ class_) {
+    if (name == self) {
+        ct->semant_error(class_) << "Cannot assign to self" << endl;
+        return set_type(Object)->get_type();
+    }
+
     Symbol t1 = env->lookup(name->get_string());
     if (t1 == NULL) {
         ct->semant_error(class_) << name << " is not defined in scope" << endl;
@@ -734,6 +750,11 @@ Symbol block_class::typecheck(Class_ class_) {
 }
 
 Symbol let_class::typecheck(Class_ class_) {
+    if (identifier == self) {
+        ct->semant_error(class_) << "self cannot be bound in a let expression" << endl;
+        return set_type(Object)->get_type();
+    }
+
     if (!type_exist(type_decl)) {
         ct->semant_error(class_) << "Type " << type_decl << " is not defined" << endl;
         return set_type(Object)->get_type();
@@ -771,6 +792,11 @@ Symbol typcase_class::typecheck(Class_ class_) {
 }
 
 Symbol branch_class::typecheck(Class_ class_) {
+    if (name == self) {
+        ct->semant_error(class_) << "self cannot be bound in a case branch" << endl;
+        return Object;
+    }
+
     if (!type_exist(type_decl)) {
         ct->semant_error(class_) << "Type " << type_decl << " is not defined" << endl;
         return Object;
