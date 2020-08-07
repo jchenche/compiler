@@ -45,7 +45,7 @@ private:
   void check_for_cycles(Class_ class_, Node* class_node);
 
 public:
-  ClassTable(Classes);
+  ClassTable();
   int errors() { return semant_errors; }
   ostream& semant_error();
   ostream& semant_error(Class_ c);

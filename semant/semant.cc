@@ -87,7 +87,7 @@ static void initialize_constants(void)
     val         = idtable.add_string("_val");
 }
 
-ClassTable::ClassTable(Classes classes) : semant_errors(0) , error_stream(cerr) {
+ClassTable::ClassTable() : semant_errors(0) , error_stream(cerr) {
     install_basic_classes();
     construct_class_hierarchy(ast_root->get_classes());
 }
@@ -247,7 +247,6 @@ void ClassTable::install_basic_classes() {
     ast_root->add_classes(Object_class)->add_classes(IO_class)
             ->add_classes(Int_class)->add_classes(Bool_class)
             ->add_classes(Str_class);
-
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -335,10 +334,15 @@ static void gather_decls() {
  */
 void program_class::semant() {
     initialize_constants();
-    ct = new ClassTable(classes);
+    
+    Classes classes_without_basic = classes->copy_list();
+    ct = new ClassTable();
     gather_decls();
+    classes = classes_without_basic;
+
     env = new SymbolTable<std::string, Entry>();
     typecheck();
+
     if (ct->errors()) {
         cerr << "Compilation halted due to static semantic errors." << endl;
         exit(1);
