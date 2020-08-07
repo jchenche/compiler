@@ -288,7 +288,7 @@ Program program_class::add_classes(Class_ c) {
     return this;
 }
 
-static void gather_decls() {
+static void gather_attr_and_signature_decls() {
     Classes classes = ast_root->get_classes();
     Features features;
     for(int i = classes->first(); classes->more(i); i = classes->next(i)) {
@@ -319,6 +319,22 @@ static void gather_decls() {
     }
 }
 
+static void check_main_in_Main() {
+    std::string main_class_name = Main->get_string();
+    if (ct->get_hierarchy().find(main_class_name) == ct->get_hierarchy().end()) {
+        ct->semant_error() << "Class Main is not defined." << endl;
+        return;
+    }
+    std::string main_meth_name = main_meth->get_string();
+    if (signatures[main_class_name].find(main_meth_name) == signatures[main_class_name].end()) {
+        ct->semant_error() << "Method main is not defined in Main." << endl;
+        return;
+    }
+    if (signatures[main_class_name][main_meth_name].size() > 1) {
+        ct->semant_error() << "Method main should have no arguments." << endl;
+    }
+}
+
 /*   This is the entry point to the semantic checker.
 
      Your checker should do the following two things:
@@ -334,11 +350,13 @@ static void gather_decls() {
  */
 void program_class::semant() {
     initialize_constants();
-    
+
     Classes classes_without_basic = classes->copy_list();
     ct = new ClassTable();
-    gather_decls();
+    gather_attr_and_signature_decls();
     classes = classes_without_basic;
+
+    check_main_in_Main();
 
     env = new SymbolTable<std::string, Entry>();
     typecheck();
