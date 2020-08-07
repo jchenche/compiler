@@ -297,26 +297,6 @@ static void gather_attr_and_signature_decls() {
             features->nth(j)->gather_decls(classes->nth(i));
         }
     }
-
-    if (semant_debug) {
-        for(auto it: attrs) {
-            for(auto it2: it.second) {
-                cout << it2.first << " -> " << it2.second << endl;
-            }
-            cout << endl;
-        }
-        cout << "--------------------------" << endl;
-        for(auto it: signatures) {
-            for(auto it2: it.second) {
-                cout << it2.first << "(";
-                for(auto v: it2.second) {
-                    cout << v << ", ";
-                }
-                cout << ")" << endl;
-            }
-            cout << endl;
-        }
-    }
 }
 
 static void check_main_in_Main() {
@@ -555,25 +535,17 @@ void class__class::typecheck() {
 void method_class::typecheck(Class_ class_) {
     std::string class_name = class_->get_name()->get_string();
     std::string method_name = name->get_string();
+
     check_overridden_method_sig(class_, class_name, method_name);
     vector<Symbol> method_sig = get_signature(class_name, method_name);
+    int size = method_sig.size() - 1;
+    assert(size == formals->len());
+    
     std::string formal_name;
     Symbol formal_type;
 
-    if (semant_debug) {
-        cout << "-----------------" << endl;
-        cout << "in " << class_name << " of " << method_name << endl;
-        for(auto v: method_sig) {
-            cout << v << " ";
-        }
-        cout << endl;
-    }
-
     env->enterscope();
     env->addid(self->get_string(), class_->get_name());
-
-    int size = method_sig.size() - 1;
-    assert(size == formals->len());
 
     int i, j;
     for(i = formals->first(), j = 0; formals->more(i) && j < size; i = formals->next(i), ++j) {
@@ -620,7 +592,7 @@ Symbol no_expr_class::typecheck(Class_ class_) {
 Symbol object_class::typecheck(Class_ class_) {
     Symbol t1 = env->lookup(name->get_string());
     if (t1 == NULL) {
-        ct->semant_error(class_) << t1 << " is not defined in scope" << endl;
+        ct->semant_error(class_) << name << " is not defined in scope" << endl;
         return set_type(Object)->get_type();
     }
     return set_type(t1)->get_type();
@@ -629,7 +601,7 @@ Symbol object_class::typecheck(Class_ class_) {
 Symbol assign_class::typecheck(Class_ class_) {
     Symbol t1 = env->lookup(name->get_string());
     if (t1 == NULL) {
-        ct->semant_error(class_) << t1 << " is not defined in scope" << endl;
+        ct->semant_error(class_) << name << " is not defined in scope" << endl;
         return set_type(Object)->get_type();
     }
 
