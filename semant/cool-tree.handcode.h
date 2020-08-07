@@ -8,6 +8,11 @@
 #include "tree.h"
 #include "cool.h"
 #include "stringtab.h"
+#include <vector>
+#include <algorithm>
+
+using std::vector;
+
 #define yylineno curr_lineno;
 extern int yylineno;
 
@@ -101,11 +106,11 @@ Symbol get_type() { return type_decl; }
 
 #define Case_EXTRAS                             \
 virtual void dump_with_types(ostream& ,int) = 0; \
-virtual Symbol typecheck(Class_) = 0;
+virtual Symbol typecheck(Class_, vector<Symbol>&) = 0;
 
 #define branch_EXTRAS                                   \
 void dump_with_types(ostream& ,int); \
-Symbol typecheck(Class_);
+Symbol typecheck(Class_, vector<Symbol>&);
 
 
 #define Expression_EXTRAS                    \
