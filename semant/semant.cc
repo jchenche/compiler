@@ -342,7 +342,9 @@ void program_class::semant() {
     check_main_in_Main();
 
     env = new SymbolTable<std::string, Entry>();
+    if (semant_debug) cout << "===== BEGIN type checking =====" << endl;
     typecheck();
+    if (semant_debug) cout << "===== END type checking =====" << endl;
 
     if (ct->errors()) {
         cerr << "Compilation halted due to static semantic errors." << endl;
@@ -484,7 +486,11 @@ static bool is_subtype(Class_ class_, Symbol t1, Symbol t2) {
     return false;
 }
 
-static std::string least_common_ancestor(std::string class1, std::string class2) {
+static std::string least_common_ancestor(Class_ class_, std::string class1, std::string class2) {
+    if (class1 == "SELF_TYPE" && class2 == "SELF_TYPE") return "SELF_TYPE";
+    if (class1 == "SELF_TYPE") class1 = class_->get_name()->get_string();
+    if (class2 == "SELF_TYPE") class2 = class_->get_name()->get_string();
+
     vector<Node*> nodes1;
     vector<Node*> nodes2;
     
@@ -519,12 +525,16 @@ static char* to_compatible_string(std::string s) {
 }
 
 void program_class::typecheck() {
+    if (semant_debug) cout << "type checking [program]" << endl;
+
     for(int i = classes->first(); classes->more(i); i = classes->next(i)) {
         classes->nth(i)->typecheck();
     }
 }
 
 void class__class::typecheck() {
+    if (semant_debug) cout << "---------\n" << "type checking [class] " << name << endl;
+
     env->enterscope();
     add_attr_to_scope(this);
     for(int i = features->first(); features->more(i); i = features->next(i)) {
@@ -534,6 +544,8 @@ void class__class::typecheck() {
 }
 
 void method_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [method] " << name << endl;
+
     std::string class_name = class_->get_name()->get_string();
     std::string method_name = name->get_string();
 
@@ -578,6 +590,8 @@ void method_class::typecheck(Class_ class_) {
 }
 
 void attr_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [attr] " << name << endl;
+
     if (name == self) {
         ct->semant_error(class_) << "self cannot be the name of an attribute" << endl;
         return;
@@ -597,10 +611,14 @@ void attr_class::typecheck(Class_ class_) {
 }
 
 Symbol no_expr_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [no_expr]" << endl;
+
     return set_type(No_type)->get_type();
 }
 
 Symbol object_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [object]" << endl;
+
     Symbol t1 = env->lookup(name->get_string());
     if (t1 == NULL) {
         ct->semant_error(class_) << name << " is not defined in scope" << endl;
@@ -610,6 +628,8 @@ Symbol object_class::typecheck(Class_ class_) {
 }
 
 Symbol assign_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [assign]" << endl;
+
     if (name == self) {
         ct->semant_error(class_) << "Cannot assign to self" << endl;
         return set_type(Object)->get_type();
@@ -632,18 +652,26 @@ Symbol assign_class::typecheck(Class_ class_) {
 }
 
 Symbol bool_const_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [bool_const]" << endl;
+
     return set_type(Bool)->get_type();
 }
 
 Symbol int_const_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [int_const]" << endl;
+
     return set_type(Int)->get_type();
 }
 
 Symbol string_const_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [string_const]" << endl;
+
     return set_type(Str)->get_type();
 }
 
 Symbol new__class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [new]" << endl;
+
     if (!type_exist(type_name)) {
         ct->semant_error(class_) << "Type " << type_name << " is not defined" << endl;
         return set_type(Object)->get_type();
@@ -653,6 +681,8 @@ Symbol new__class::typecheck(Class_ class_) {
 }
 
 Symbol dispatch_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [dispatch] " << name << endl;
+
     std::string method_name = name->get_string();
     vector<Symbol> t;
 
@@ -695,6 +725,8 @@ Symbol dispatch_class::typecheck(Class_ class_) {
 }
 
 Symbol static_dispatch_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [static_dispatch] " << name << endl;
+
     std::string method_name = name->get_string();
     vector<Symbol> t;
 
@@ -744,6 +776,8 @@ Symbol static_dispatch_class::typecheck(Class_ class_) {
 }
 
 Symbol cond_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [cond]" << endl;
+
     Symbol t1 = pred->typecheck(class_);
     if (t1 != Bool) {
         ct->semant_error(class_) << "The if condition doesn't have type Bool" << endl;
@@ -751,11 +785,13 @@ Symbol cond_class::typecheck(Class_ class_) {
     }
     Symbol t2 = then_exp->typecheck(class_);
     Symbol t3 = else_exp->typecheck(class_);
-    std::string lca_class_name = least_common_ancestor(t2->get_string(), t3->get_string());
+    std::string lca_class_name = least_common_ancestor(class_, t2->get_string(), t3->get_string());
     return set_type(idtable.lookup_string(to_compatible_string(lca_class_name)))->get_type();
 }
 
 Symbol block_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [block]" << endl;
+
     Symbol t;
     for(int i = body->first(); body->more(i); i = body->next(i)) {
         t = body->nth(i)->typecheck(class_);
@@ -764,6 +800,8 @@ Symbol block_class::typecheck(Class_ class_) {
 }
 
 Symbol let_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [let]" << endl;
+
     if (identifier == self) {
         ct->semant_error(class_) << "self cannot be bound in a let expression" << endl;
         return set_type(Object)->get_type();
@@ -791,6 +829,8 @@ Symbol let_class::typecheck(Class_ class_) {
 }
 
 Symbol typcase_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [typcase]" << endl;
+
     Symbol t0 = expr->typecheck(class_);
 
     vector<Symbol> t;
@@ -802,13 +842,15 @@ Symbol typcase_class::typecheck(Class_ class_) {
     std::string lca_class_name = t.at(0)->get_string();
     int size = t.size();
     for(int i = 1; i < size; ++i) {
-        lca_class_name = least_common_ancestor(lca_class_name, t.at(i)->get_string());
+        lca_class_name = least_common_ancestor(class_, lca_class_name, t.at(i)->get_string());
     }
 
     return set_type(idtable.lookup_string(to_compatible_string(lca_class_name)))->get_type();
 }
 
 Symbol branch_class::typecheck(Class_ class_, vector<Symbol>& seen_decl_types) {
+    if (semant_debug) cout << "type checking [branch]" << endl;
+
     if (name == self) {
         ct->semant_error(class_) << "self cannot be bound in a case branch" << endl;
         return Object;
@@ -840,6 +882,8 @@ Symbol branch_class::typecheck(Class_ class_, vector<Symbol>& seen_decl_types) {
 }
 
 Symbol loop_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [loop]" << endl;
+
     Symbol t1 = pred->typecheck(class_);
     if (t1 != Bool) {
         ct->semant_error(class_) << "The while condition doesn't have type Bool" << endl;
@@ -850,11 +894,15 @@ Symbol loop_class::typecheck(Class_ class_) {
 }
 
 Symbol isvoid_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [isvoid]" << endl;
+
     Symbol t = e1->typecheck(class_);
     return set_type(Bool)->get_type();
 }
 
 Symbol comp_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [comp]" << endl;
+
     Symbol t1 = e1->typecheck(class_);
     if (t1 != Bool) {
         ct->semant_error(class_) << "non-Bool operand: NOT " << t1 << endl;
@@ -864,6 +912,8 @@ Symbol comp_class::typecheck(Class_ class_) {
 }
 
 Symbol lt_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [lt]" << endl;
+
     Symbol t1 = e1->typecheck(class_);
     Symbol t2 = e2->typecheck(class_);
     if (t1 != Int || t2 != Int) {
@@ -874,6 +924,8 @@ Symbol lt_class::typecheck(Class_ class_) {
 }
 
 Symbol leq_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [leq]" << endl;
+
     Symbol t1 = e1->typecheck(class_);
     Symbol t2 = e2->typecheck(class_);
     if (t1 != Int || t2 != Int) {
@@ -884,6 +936,8 @@ Symbol leq_class::typecheck(Class_ class_) {
 }
 
 Symbol neg_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [neg]" << endl;
+
     Symbol t1 = e1->typecheck(class_);
     if (t1 != Int) {
         ct->semant_error(class_) << "Non-Int operands: ~ " << t1 << endl;
@@ -893,6 +947,8 @@ Symbol neg_class::typecheck(Class_ class_) {
 }
 
 Symbol plus_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [plus]" << endl;
+
     Symbol t1 = e1->typecheck(class_);
     Symbol t2 = e2->typecheck(class_);
     if (t1 != Int || t2 != Int) {
@@ -903,6 +959,8 @@ Symbol plus_class::typecheck(Class_ class_) {
 }
 
 Symbol sub_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [sub]" << endl;
+
     Symbol t1 = e1->typecheck(class_);
     Symbol t2 = e2->typecheck(class_);
     if (t1 != Int || t2 != Int) {
@@ -913,6 +971,8 @@ Symbol sub_class::typecheck(Class_ class_) {
 }
 
 Symbol mul_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [mul]" << endl;
+
     Symbol t1 = e1->typecheck(class_);
     Symbol t2 = e2->typecheck(class_);
     if (t1 != Int || t2 != Int) {
@@ -923,6 +983,8 @@ Symbol mul_class::typecheck(Class_ class_) {
 }
 
 Symbol divide_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [divide]" << endl;
+
     Symbol t1 = e1->typecheck(class_);
     Symbol t2 = e2->typecheck(class_);
     if (t1 != Int || t2 != Int) {
@@ -933,6 +995,8 @@ Symbol divide_class::typecheck(Class_ class_) {
 }
 
 Symbol eq_class::typecheck(Class_ class_) {
+    if (semant_debug) cout << "type checking [eq]" << endl;
+
     Symbol t1 = e1->typecheck(class_);
     Symbol t2 = e2->typecheck(class_);
     if (t1 == Int || t1 == Str || t1 == Bool || t2 == Int || t2 == Str || t2 == Bool) {

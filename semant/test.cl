@@ -1,26 +1,28 @@
+class Silly {
+    copy(): SELF_TYPE { self };
+};
+
+class Sally inherits Silly {};
+
 class Main {
     main() : Object {
-        let x: Int <- 3, x: String <- "Hi" in x
+        let x: SELF_TYPE <- self, x: String <- "Hi" in x
     };
 
-    x: Int;
+    x: String;
     y: NONEXISTING;
     x: B <- foo(3, "hi");
-    i: Int;
+    z: Bool;
 
-    foo(param: String) : B {
-        if true then new A else new B fi
-    };
-
-    main() : Object {
-        let x: Int <- 3, x: String <- "Hi" in x
+    foo() : B {
+        if true then new A else new C fi
     };
 };
 
 class A inherits B {
     x: Int <- 33;
-    foo() : Object {
-        let x: Int <- 3, x: String <- "Hi" in x
+    foo() : SELF_TYPE {
+        new SELF_TYPE
     };
 
 };
