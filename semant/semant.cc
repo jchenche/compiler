@@ -540,7 +540,7 @@ void method_class::typecheck(Class_ class_) {
     vector<Symbol> method_sig = get_signature(class_name, method_name);
     int size = method_sig.size() - 1;
     assert(size == formals->len());
-    
+
     std::string formal_name;
     Symbol formal_type;
 
@@ -573,13 +573,13 @@ void method_class::typecheck(Class_ class_) {
 void attr_class::typecheck(Class_ class_) {
     env->enterscope();
 
-    Symbol t1 = env->lookup(name->get_string());
-    // if (t1 == SELF_TYPE) t1 = class_->get_name();
+    Symbol t0 = env->lookup(name->get_string());
+    // if (t0 == SELF_TYPE) t0 = class_->get_name();
     env->addid(self->get_string(), class_->get_name());
-    Symbol t2 = init->typecheck(class_);
+    Symbol t1 = init->typecheck(class_);
 
-    if (t2 != No_type && !is_subtype(t1, t2)) {
-        ct->semant_error(class_) << t1 << " is not a subtype of " << t2 << endl;
+    if (t1 != No_type && !is_subtype(t1, t0)) {
+        ct->semant_error(class_) << t1 << " is not a subtype of " << t0 << endl;
     }
 
     env->exitscope();
