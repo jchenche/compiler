@@ -474,6 +474,7 @@ static bool is_subtype(Class_ class_, Symbol t1, Symbol t2) {
     std::string curr_class_name = t1->get_string();
     std::string target_class_name = t2->get_string();
     if (t1 == SELF_TYPE) curr_class_name = class_->get_name()->get_string();
+    if (t2 == SELF_TYPE) return false;
 
     Node* curr_node = ct->get_hierarchy()[curr_class_name];
     Node* target_node = ct->get_hierarchy()[target_class_name];
@@ -583,7 +584,8 @@ void method_class::typecheck(Class_ class_) {
     Symbol t2 = method_sig.at(size);
 
     if (t1 != No_type && !is_subtype(class_, t1, t2)) {
-        ct->semant_error(class_) << t1 << " is not a subtype of " << t2 << endl;
+        ct->semant_error(class_) << t1 << " is not a subtype of " << t2
+        << " in method " << method_name << endl;
     }
 
     env->exitscope();
@@ -606,7 +608,8 @@ void attr_class::typecheck(Class_ class_) {
     env->exitscope();
 
     if (t1 != No_type && !is_subtype(class_, t1, t0)) {
-        ct->semant_error(class_) << t1 << " is not a subtype of " << t0 << endl;
+        ct->semant_error(class_) << t1 << " is not a subtype of " << t0
+        << " in attr " << name << endl;
     }
 }
 
@@ -617,7 +620,7 @@ Symbol no_expr_class::typecheck(Class_ class_) {
 }
 
 Symbol object_class::typecheck(Class_ class_) {
-    if (semant_debug) cout << "type checking [object]" << endl;
+    if (semant_debug) cout << "type checking [object] " << name << endl;
 
     Symbol t1 = env->lookup(name->get_string());
     if (t1 == NULL) {
@@ -628,7 +631,7 @@ Symbol object_class::typecheck(Class_ class_) {
 }
 
 Symbol assign_class::typecheck(Class_ class_) {
-    if (semant_debug) cout << "type checking [assign]" << endl;
+    if (semant_debug) cout << "type checking [assign] " << name << endl;
 
     if (name == self) {
         ct->semant_error(class_) << "Cannot assign to self" << endl;
@@ -644,7 +647,8 @@ Symbol assign_class::typecheck(Class_ class_) {
     Symbol t2 = expr->typecheck(class_);
 
     if (!is_subtype(class_, t2, t1)) {
-        ct->semant_error(class_) << t2 << " is not a subtype of " << t1 << endl;
+        ct->semant_error(class_) << t2 << " is not a subtype of " << t1
+        << " in assignment to " << name << endl;
         return set_type(Object)->get_type();
     }
 
@@ -713,7 +717,8 @@ Symbol dispatch_class::typecheck(Class_ class_) {
     for(int i = 1; i < arg_size; ++i) {
         if (!is_subtype(class_, t.at(i), method_sig.at(i - 1))) {
             ct->semant_error(class_) << t.at(i)
-            << " is not a subtype of " << method_sig.at(i - 1) << endl;
+            << " is not a subtype of " << method_sig.at(i - 1)
+            << " in dispatch" << endl;
             return set_type(Object)->get_type();
         }
     }
@@ -730,6 +735,11 @@ Symbol static_dispatch_class::typecheck(Class_ class_) {
     std::string method_name = name->get_string();
     vector<Symbol> t;
 
+    if (!type_exist(type_name)) {
+        ct->semant_error(class_) << "Type " << type_name << " is not defined" << endl;
+        return set_type(Object)->get_type();
+    }
+
     if (type_name == SELF_TYPE) {
         ct->semant_error(class_) << "Cannot statically dispatch to SELF_TYPE" << endl;
         return set_type(Object)->get_type();
@@ -741,7 +751,8 @@ Symbol static_dispatch_class::typecheck(Class_ class_) {
     }
 
     if (!is_subtype(class_, t.at(0), type_name)) {
-        ct->semant_error(class_) << t.at(0) << " is not a subtype of " << type_name << endl;
+        ct->semant_error(class_) << t.at(0) << " is not a subtype of " << type_name
+        << " in static dispatch" << endl;
         return set_type(Object)->get_type();
     }
 
@@ -750,21 +761,22 @@ Symbol static_dispatch_class::typecheck(Class_ class_) {
     int arg_size = t.size();
 
     if (method_sig.empty()) {
-        ct->semant_error(class_) << "Method " << method_name <<
-        " is called with wrong number of arguments" << endl;
+        ct->semant_error(class_) << "Method " << method_name << " is not defined in "
+        << class_->get_name() << " or any of its ancestors" << endl;
         return set_type(Object)->get_type();
     }
 
     if (arg_size != param_size) {
-        ct->semant_error(class_) << "Method argument and paramater number mismatch for "
-        << method_name << endl;
+        ct->semant_error(class_) << "Method " << method_name <<
+        " is called with wrong number of arguments" << endl;
         return set_type(Object)->get_type();
     }
 
     for(int i = 1; i < arg_size; ++i) {
         if (!is_subtype(class_, t.at(i), method_sig.at(i - 1))) {
             ct->semant_error(class_) << t.at(i)
-            << " is not a subtype of " << method_sig.at(i - 1) << endl;
+            << " is not a subtype of " << method_sig.at(i - 1)
+            << " in static dispatch" << endl;
             return set_type(Object)->get_type();
         }
     }
@@ -816,7 +828,8 @@ Symbol let_class::typecheck(Class_ class_) {
 
     Symbol t1 = init->typecheck(class_);
     if (t1 != No_type && !is_subtype(class_, t1, t0)) {
-        ct->semant_error(class_) << t1 << " is not a subtype of " << t0 << endl;
+        ct->semant_error(class_) << t1 << " is not a subtype of " << t0
+        << " in let" << endl;
         return set_type(Object)->get_type();
     }
 
