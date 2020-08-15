@@ -111,6 +111,12 @@ static char *gc_collect_names[] =
   { "_NoGC_Collect", "_GenGC_Collect", "_ScnGC_Collect" };
 
 
+
+// Class tags are based on their order in class list (except Str, Int, Bool, they come first)
+static int class_tag = 0;
+
+
+
 //  BoolConst is a class that implements code generation for operations
 //  on the two booleans, which are given global names here.
 BoolConst falsebool(FALSE);
@@ -402,7 +408,7 @@ void StringEntry::code_def(ostream& s, int stringclasstag)
       << WORD;
 
 
- /***** Add dispatch information for class String ******/
+ /***** Add dispatch information for class String [TODO] ******/
 
       s << endl;                                              // dispatch table
       s << WORD;  lensym->code_ref(s);  s << endl;            // string length
@@ -442,9 +448,9 @@ void IntEntry::code_def(ostream &s, int intclasstag)
   code_ref(s);  s << LABEL                                // label
       << WORD << intclasstag << endl                      // class tag
       << WORD << (DEFAULT_OBJFIELDS + INT_SLOTS) << endl  // object size
-      << WORD; 
+      << WORD << 0; 
 
- /***** Add dispatch information for class Int ******/
+ /***** Add dispatch information for class Int [TODO] ******/
 
       s << endl;                                          // dispatch table
       s << WORD << str << endl;                           // integer value
@@ -486,9 +492,9 @@ void BoolConst::code_def(ostream& s, int boolclasstag)
   code_ref(s);  s << LABEL                                  // label
       << WORD << boolclasstag << endl                       // class tag
       << WORD << (DEFAULT_OBJFIELDS + BOOL_SLOTS) << endl   // object size
-      << WORD;
+      << WORD << 0;
 
- /***** Add dispatch information for class Bool ******/
+ /***** Add dispatch information for class Bool [TODO] ******/
 
       s << endl;                                            // dispatch table
       s << WORD << val << endl;                             // value (0 or 1)
@@ -619,15 +625,17 @@ void CgenClassTable::code_constants()
 
 CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
 {
-   stringclasstag = 0 /* Change to your String class tag here */;
-   intclasstag =    0 /* Change to your Int class tag here */;
-   boolclasstag =   0 /* Change to your Bool class tag here */;
+   stringclasstag = class_tag++; /* Change to your String class tag here */;
+   intclasstag    = class_tag++; /* Change to your Int class tag here */;
+   boolclasstag   = class_tag++; /* Change to your Bool class tag here */;
 
    enterscope();
    if (cgen_debug) cout << "Building CgenClassTable" << endl;
    install_basic_classes();
    install_classes(classes);
    build_inheritance_tree();
+
+   
 
    code();
    exitscope();
@@ -817,6 +825,59 @@ void CgenNode::set_parentnd(CgenNodeP p)
 
 
 
+void CgenClassTable::code_class_nameTab()
+{
+  str << CLASSNAMETAB << LABEL;
+
+  StringEntry* Str_str_sym = stringtable.lookup_string(Str->get_string());
+  str << WORD; Str_str_sym->code_ref(str); str << endl;
+
+  StringEntry* Int_str_sym = stringtable.lookup_string(Int->get_string());
+  str << WORD; Int_str_sym->code_ref(str); str << endl;
+
+  StringEntry* Bool_str_sym = stringtable.lookup_string(Bool->get_string());
+  str << WORD; Bool_str_sym->code_ref(str); str << endl;
+
+  StringEntry* class_sym;
+
+  for(List<CgenNode> *l = nds; l; l = l->tl()) {
+    class_sym = stringtable.lookup_string(l->hd()->get_name()->get_string());
+    if (class_sym == Str_str_sym || class_sym == Int_str_sym || class_sym == Bool_str_sym) continue;
+    str << WORD; class_sym->code_ref(str); str << endl;
+  }
+}
+
+void CgenClassTable::code_class_objTab()
+{
+  str << CLASSOBJTAB << LABEL;
+
+  StringEntry* Str_str_sym = stringtable.lookup_string(Str->get_string());
+  str << WORD << Str_str_sym << PROTOBJ_SUFFIX << endl;
+  str << WORD << Str_str_sym << CLASSINIT_SUFFIX << endl;
+
+  StringEntry* Int_str_sym = stringtable.lookup_string(Int->get_string());
+  str << WORD << Int_str_sym << PROTOBJ_SUFFIX << endl;
+  str << WORD << Int_str_sym << CLASSINIT_SUFFIX << endl;
+
+  StringEntry* Bool_str_sym = stringtable.lookup_string(Bool->get_string());
+  str << WORD << Bool_str_sym << PROTOBJ_SUFFIX << endl;
+  str << WORD << Bool_str_sym << CLASSINIT_SUFFIX << endl;
+
+  StringEntry* class_sym;
+
+  for(List<CgenNode> *l = nds; l; l = l->tl()) {
+    class_sym = stringtable.lookup_string(l->hd()->get_name()->get_string());
+    if (class_sym == Str_str_sym || class_sym == Int_str_sym || class_sym == Bool_str_sym) continue;
+    str << WORD << class_sym << PROTOBJ_SUFFIX << endl;
+    str << WORD << class_sym << CLASSINIT_SUFFIX << endl;
+  }
+}
+
+void CgenClassTable::code_proto_Obj()
+{
+
+}
+
 void CgenClassTable::code()
 {
   if (cgen_debug) cout << "coding global data" << endl;
@@ -827,6 +888,15 @@ void CgenClassTable::code()
 
   if (cgen_debug) cout << "coding constants" << endl;
   code_constants();
+
+  if (cgen_debug) cout << "coding prototype objects" << endl;
+  code_proto_Obj();
+
+  if (cgen_debug) cout << "coding class_nameTab" << endl;
+  code_class_nameTab();
+
+  if (cgen_debug) cout << "coding class_objTab" << endl;
+  code_class_objTab();
 
 //                 Add your code to emit
 //                   - prototype objects

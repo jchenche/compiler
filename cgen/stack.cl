@@ -1,9 +1,9 @@
 (* top comments *)
 class List {
-   isNil() : Bool { true };
-   head()  : Command { { abort(); new Command; } };
-   tail()  : List { { abort(); self; } };
-   cons(i : Command) : List { (new Cons).init(i, self) };
+    isNil() : Bool { true };
+    head()  : Command { { abort(); new Command; } };
+    tail()  : List { { abort(); self; } };
+    cons(i : Command) : List { (new Cons).init(i, self) };
 };
 
 class Cons inherits List {
