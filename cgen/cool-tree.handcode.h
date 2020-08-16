@@ -20,6 +20,8 @@ void dump_Symbol(ostream& stream, int padding, Symbol b);
 void assert_Symbol(Symbol b);
 Symbol copy_Symbol(Symbol b);
 
+class CgenNode;
+
 class Program_class;
 typedef Program_class *Program;
 class Class__class;
@@ -58,6 +60,7 @@ void dump_with_types(ostream&, int);
 virtual Symbol get_name() = 0;  	\
 virtual Symbol get_parent() = 0;    	\
 virtual Symbol get_filename() = 0;      \
+virtual Features get_features() = 0; \
 virtual void dump_with_types(ostream&,int) = 0; 
 
 
@@ -65,23 +68,28 @@ virtual void dump_with_types(ostream&,int) = 0;
 Symbol get_name()   { return name; }		       \
 Symbol get_parent() { return parent; }     	       \
 Symbol get_filename() { return filename; }             \
+Features get_features() { return features; } \
 void dump_with_types(ostream&,int);                    
 
 
 #define Feature_EXTRAS                                        \
-virtual void dump_with_types(ostream&,int) = 0; 
+virtual void dump_with_types(ostream&,int) = 0; \
+virtual void gather_variable_names(std::string, CgenNode*) = 0;
 
 
 #define Feature_SHARED_EXTRAS                                       \
-void dump_with_types(ostream&,int);    
+void dump_with_types(ostream&,int);    \
+void gather_variable_names(std::string, CgenNode*);
 
 
 #define Formal_EXTRAS                              \
-virtual void dump_with_types(ostream&,int) = 0;
+virtual void dump_with_types(ostream&,int) = 0; \
+virtual Symbol get_name() = 0;
 
 
 #define formal_EXTRAS                           \
-void dump_with_types(ostream&,int);
+void dump_with_types(ostream&,int); \
+Symbol get_name() { return name; }
 
 
 #define Case_EXTRAS                             \

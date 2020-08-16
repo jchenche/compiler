@@ -3,6 +3,11 @@
 #include "emit.h"
 #include "cool-tree.h"
 #include "symtab.h"
+#include <unordered_map>
+#include <vector>
+
+using std::unordered_map;
+using std::vector;
 
 enum Basicness     {Basic, NotBasic};
 #define TRUE 1
@@ -34,6 +39,7 @@ private:
    void code_class_nameTab();
    void code_class_objTab();
    void code_proto_Obj();
+   void code_dispatchTab();
 
 // The following creates an inheritance graph from
 // a list of classes.  The graph is implemented as
