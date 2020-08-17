@@ -509,7 +509,7 @@ void BoolConst::code_def(ostream& s, int boolclasstag)
 
 
 // Class tags are based on their order in class list (except Str, Int, Bool, they come first)
-static unordered_map<std::string, vector<std::string> > attr_names;
+static unordered_map<std::string, vector<std::pair<std::string, std::string> > > attr_names;
 static unordered_map<std::string, vector<std::pair<std::string, vector<std::string> > > > param_names;
 static unordered_map<std::string, int> class_tags;
 
@@ -635,32 +635,6 @@ static void gather_attr_and_params_names(CgenNode* nd)
   }
 }
 
-void CgenClassTable::build_class_tag_table() {
-  int class_tag = 0;
-  for(List<CgenNode> *l = nds; l; l = l->tl())
-    class_tags[l->hd()->get_name()->get_string()] = class_tag++;
-}
-
-CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
-{
-  enterscope();
-  if (cgen_debug) cout << "Building CgenClassTable" << endl;
-  install_basic_classes();
-  install_classes(classes);
-  build_inheritance_tree();
-
-  if (cgen_debug) cout << "Building class tag table" << endl;
-  build_class_tag_table();
-  stringclasstag = class_tags[Str->get_string()];
-  intclasstag    = class_tags[Int->get_string()];
-  boolclasstag   = class_tags[Bool->get_string()];
-
-  gather_attr_and_params_names(root());
-
-  code();
-  exitscope();
-}
-
 // Features from class A (saved as first parameter) will fill in table (param/attr names) for A
 // and propagate themselves to fill in tables for all descendants of A recursively
 
@@ -668,7 +642,8 @@ void attr_class::gather_variable_names(std::string class_of_feature, CgenNode* n
 {
   std::string class_name = nd->get_name()->get_string();
   std::string attr_name = name->get_string();
-  attr_names[class_name].push_back(attr_name);
+  std::string attr_type = type_decl->get_string();
+  attr_names[class_name].push_back({attr_name, attr_type});
 
   for(List<CgenNode> *l = nd->get_children(); l; l = l->tl()) {
     gather_variable_names(class_of_feature, l->hd());
@@ -707,6 +682,31 @@ void method_class::gather_variable_names(std::string class_of_feature, CgenNode*
   }
 }
 
+void CgenClassTable::build_class_tag_table() {
+  int class_tag = 0;
+  for(List<CgenNode> *l = nds; l; l = l->tl())
+    class_tags[l->hd()->get_name()->get_string()] = class_tag++;
+}
+
+CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
+{
+  enterscope();
+  if (cgen_debug) cout << "Building CgenClassTable" << endl;
+  install_basic_classes();
+  install_classes(classes);
+  build_inheritance_tree();
+
+  if (cgen_debug) cout << "Building class tag table" << endl;
+  build_class_tag_table();
+  stringclasstag = class_tags[Str->get_string()];
+  intclasstag    = class_tags[Int->get_string()];
+  boolclasstag   = class_tags[Bool->get_string()];
+
+  gather_attr_and_params_names(root());
+
+  code();
+  exitscope();
+}
 
 void CgenClassTable::install_basic_classes()
 {
@@ -891,6 +891,8 @@ void CgenNode::set_parentnd(CgenNodeP p)
 }
 
 
+// code_class_nameTab() and code_class_objTab() assume that classes get their tags
+// according to their orders in nds. Refer to build_class_tag_table()
 
 void CgenClassTable::code_class_nameTab()
 {
@@ -917,15 +919,6 @@ void CgenClassTable::code_class_objTab()
   }
 }
 
-void CgenClassTable::code_proto_Obj()
-{
-  std::string class_name;
-
-  for(List<CgenNode> *l = nds; l; l = l->tl()) {
-
-  }
-}
-
 void CgenClassTable::code_dispatchTab()
 {
   std::string class_name;
@@ -943,6 +936,46 @@ void CgenClassTable::code_dispatchTab()
   }
 }
 
+void CgenClassTable::code_proto_Obj()
+{
+  std::string class_name;
+  vector<std::pair<std::string, std::string> > attrs;
+  int num_attrs;
+  std::string type_name;
+
+  for(List<CgenNode> *l = nds; l; l = l->tl()) {
+    class_name = l->hd()->get_name()->get_string();
+    attrs = attr_names[class_name];
+    num_attrs = attrs.size();
+
+    str << WORD << "-1" << endl; // For the garbage collector
+    str << class_name << PROTOBJ_SUFFIX << LABEL;
+    str << WORD << class_tags[class_name] << endl;
+    str << WORD << DEFAULT_OBJFIELDS + num_attrs << endl;
+    str << WORD << class_name << DISPTAB_SUFFIX << endl;
+
+    for (auto attr: attrs) {
+      type_name = attr.second;
+      str << WORD;
+      if      (type_name == STRINGNAME) stringtable.lookup_string("")->code_ref(str);
+      else if (type_name == INTNAME)    inttable.lookup_string("0")->code_ref(str);
+      else if (type_name == BOOLNAME)   falsebool.code_ref(str);
+      else str << "0";
+      str << endl;
+    }
+  }
+}
+
+void CgenClassTable::code_object_init()
+{
+
+}
+
+void CgenClassTable::code_class_methods()
+{
+
+}
+
 void CgenClassTable::code()
 {
   if (cgen_debug) cout << "coding global data" << endl;
@@ -954,9 +987,6 @@ void CgenClassTable::code()
   if (cgen_debug) cout << "coding constants" << endl;
   code_constants();
 
-  if (cgen_debug) cout << "coding prototype objects" << endl;
-  code_proto_Obj();
-
   if (cgen_debug) cout << "coding class_nameTab" << endl;
   code_class_nameTab();
 
@@ -966,20 +996,17 @@ void CgenClassTable::code()
   if (cgen_debug) cout << "coding dispatch tables" << endl;
   code_dispatchTab();
 
-//                 Add your code to emit
-//                   - prototype objects
-//                   - class_nameTab
-//                   - dispatch tables
-//
+  if (cgen_debug) cout << "coding prototype objects" << endl;
+  code_proto_Obj();
 
   if (cgen_debug) cout << "coding global text" << endl;
   code_global_text();
 
-//                 Add your code to emit
-//                   - object initializer
-//                   - the class methods
-//                   - etc...
+  if (cgen_debug) cout << "coding object initializer" << endl;
+  code_object_init();
 
+  if (cgen_debug) cout << "coding class methods" << endl;
+  code_class_methods();
 }
 
 

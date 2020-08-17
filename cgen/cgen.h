@@ -41,6 +41,8 @@ private:
   void code_class_objTab();
   void code_proto_Obj();
   void code_dispatchTab();
+  void code_object_init();
+  void code_class_methods();
 
   // The following creates an inheritance graph from
   // a list of classes.  The graph is implemented as
