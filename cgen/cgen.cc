@@ -509,9 +509,14 @@ void BoolConst::code_def(ostream& s, int boolclasstag)
 
 
 // Class tags are based on their order in class list (except Str, Int, Bool, they come first)
+static unordered_map<std::string, int> class_tags;
 static unordered_map<std::string, vector<std::pair<std::string, std::string> > > attr_names;
 static unordered_map<std::string, vector<std::pair<std::string, vector<std::string> > > > param_names;
-static unordered_map<std::string, int> class_tags;
+// Reserve space in the stack for local variables
+// object_init_local_slots is used for object init method calls (take the max out of all attrs)
+// method_local_slots is used for normal method calls
+static unordered_map<std::string, int> object_init_local_slots;
+static unordered_map<std::string, unordered_map<std::string, int> > method_local_slots;
 
 
 void CgenClassTable::code_global_data()
@@ -688,6 +693,13 @@ void CgenClassTable::build_class_tag_table() {
     class_tags[l->hd()->get_name()->get_string()] = class_tag++;
 }
 
+void CgenClassTable::fill_local_variable_slots() {
+  for(List<CgenNode> *l = nds; l; l = l->tl()) {
+    object_init_local_slots[l->hd()->get_name()->get_string()] = 0; // Some classes have no attrs
+    if (!l->hd()->basic()) l->hd()->gather_local_slots();
+  }
+}
+
 CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
 {
   enterscope();
@@ -695,6 +707,9 @@ CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
   install_basic_classes();
   install_classes(classes);
   build_inheritance_tree();
+
+  if (cgen_debug) cout << "Filling local variable slots" << endl;
+  fill_local_variable_slots();
 
   if (cgen_debug) cout << "Building class tag table" << endl;
   build_class_tag_table();
@@ -960,7 +975,7 @@ void CgenClassTable::code_proto_Obj()
       if      (type_name == STRINGNAME) stringtable.lookup_string("")->code_ref(str);
       else if (type_name == INTNAME)    inttable.lookup_string("0")->code_ref(str);
       else if (type_name == BOOLNAME)   falsebool.code_ref(str);
-      else str << "0";
+      else str << 0; // Default value for everything else is void (represented by 0)
       str << endl;
     }
   }
@@ -1093,21 +1108,16 @@ void leq_class::code(ostream &s) {
 void comp_class::code(ostream &s) {
 }
 
-void int_const_class::code(ostream& s)  
-{
-  //
+void int_const_class::code(ostream& s) {
   // Need to be sure we have an IntEntry *, not an arbitrary Symbol
-  //
   emit_load_int(ACC,inttable.lookup_string(token->get_string()),s);
 }
 
-void string_const_class::code(ostream& s)
-{
+void string_const_class::code(ostream& s) {
   emit_load_string(ACC,stringtable.lookup_string(token->get_string()),s);
 }
 
-void bool_const_class::code(ostream& s)
-{
+void bool_const_class::code(ostream& s) {
   emit_load_bool(ACC, BoolConst(val), s);
 }
 
@@ -1123,4 +1133,76 @@ void no_expr_class::code(ostream &s) {
 void object_class::code(ostream &s) {
 }
 
+
+
+void class__class::gather_local_slots() {
+  for(int i = features->first(); features->more(i); i = features->next(i))
+    features->nth(i)->gather_local_slots(this);
+}
+
+void method_class::gather_local_slots(Class_ class_) {
+  std::string class_name = class_->get_name()->get_string();
+  method_local_slots[class_name][name->get_string()] = expr->num_locals();
+}
+
+void attr_class::gather_local_slots(Class_ class_) {
+  std::string class_name = class_->get_name()->get_string();
+  object_init_local_slots[class_name] = max(object_init_local_slots[class_name], init->num_locals());
+}
+
+int assign_class::num_locals() { return expr->num_locals(); }
+
+int static_dispatch_class::num_locals() {
+  int num_locals = expr->num_locals();
+  for(int i = actual->first(); actual->more(i); i = actual->next(i))
+    num_locals = max(num_locals, actual->nth(i)->num_locals());
+  return num_locals;
+}
+
+int dispatch_class::num_locals() {
+  int num_locals = expr->num_locals();
+  for(int i = actual->first(); actual->more(i); i = actual->next(i))
+    num_locals = max(num_locals, actual->nth(i)->num_locals());
+  return num_locals;
+}
+
+int cond_class::num_locals() {
+  return max(pred->num_locals(), max(then_exp->num_locals(), else_exp->num_locals()));
+}
+
+int loop_class::num_locals() { return max(pred->num_locals(), body->num_locals()); }
+
+int typcase_class::num_locals() {
+  int num_locals = expr->num_locals();
+  for(int i = cases->first(); cases->more(i); i = cases->next(i))
+    num_locals = max(num_locals, cases->nth(i)->num_locals());
+  return num_locals;
+}
+
+int branch_class::num_locals() { return 1 + expr->num_locals(); }
+
+int block_class::num_locals() {
+  int num_locals = 0;
+  for(int i = body->first(); body->more(i); i = body->next(i))
+    num_locals = max(num_locals, body->nth(i)->num_locals());
+  return num_locals;
+}
+
+int let_class::num_locals() { return max(init->num_locals(), 1 + body->num_locals()); }
+int plus_class::num_locals() { return max(e1->num_locals(), e2->num_locals()); }
+int sub_class::num_locals() { return max(e1->num_locals(), e2->num_locals()); }
+int mul_class::num_locals() { return max(e1->num_locals(), e2->num_locals()); }
+int divide_class::num_locals() { return max(e1->num_locals(), e2->num_locals()); }
+int neg_class::num_locals() { return e1->num_locals(); }
+int lt_class::num_locals() { return max(e1->num_locals(), e2->num_locals()); }
+int eq_class::num_locals() { return max(e1->num_locals(), e2->num_locals()); }
+int leq_class::num_locals() { return max(e1->num_locals(), e2->num_locals()); }
+int comp_class::num_locals() { return e1->num_locals(); }
+int int_const_class::num_locals() { return 0; }
+int string_const_class::num_locals() { return 0; }
+int bool_const_class::num_locals() { return 0; }
+int new__class::num_locals() { return 0; }
+int isvoid_class::num_locals() { return e1->num_locals(); }
+int no_expr_class::num_locals() { return 0; }
+int object_class::num_locals() { return 0; }
 

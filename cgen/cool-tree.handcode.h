@@ -61,7 +61,8 @@ virtual Symbol get_name() = 0;  	\
 virtual Symbol get_parent() = 0;    	\
 virtual Symbol get_filename() = 0;      \
 virtual Features get_features() = 0; \
-virtual void dump_with_types(ostream&,int) = 0; 
+virtual void dump_with_types(ostream&,int) = 0; \
+virtual void gather_local_slots() = 0;
 
 
 #define class__EXTRAS                                  \
@@ -69,17 +70,20 @@ Symbol get_name()   { return name; }		       \
 Symbol get_parent() { return parent; }     	       \
 Symbol get_filename() { return filename; }             \
 Features get_features() { return features; } \
-void dump_with_types(ostream&,int);                    
+void dump_with_types(ostream&,int);  \
+void gather_local_slots();
 
 
 #define Feature_EXTRAS                                        \
 virtual void dump_with_types(ostream&,int) = 0; \
-virtual void gather_variable_names(std::string, CgenNode*) = 0;
+virtual void gather_variable_names(std::string, CgenNode*) = 0; \
+virtual void gather_local_slots(Class_) = 0;
 
 
 #define Feature_SHARED_EXTRAS                                       \
 void dump_with_types(ostream&,int);    \
-void gather_variable_names(std::string, CgenNode*);
+void gather_variable_names(std::string, CgenNode*); \
+void gather_local_slots(Class_);
 
 
 #define Formal_EXTRAS                              \
@@ -93,11 +97,13 @@ Symbol get_name() { return name; }
 
 
 #define Case_EXTRAS                             \
-virtual void dump_with_types(ostream& ,int) = 0;
+virtual void dump_with_types(ostream& ,int) = 0; \
+virtual int num_locals() = 0;
 
 
 #define branch_EXTRAS                                   \
-void dump_with_types(ostream& ,int);
+void dump_with_types(ostream& ,int); \
+int num_locals();
 
 
 #define Expression_EXTRAS                    \
@@ -107,11 +113,13 @@ Expression set_type(Symbol s) { type = s; return this; } \
 virtual void code(ostream&) = 0; \
 virtual void dump_with_types(ostream&,int) = 0;  \
 void dump_type(ostream&, int);               \
-Expression_class() { type = (Symbol) NULL; }
+Expression_class() { type = (Symbol) NULL; } \
+virtual int num_locals() = 0;
 
 #define Expression_SHARED_EXTRAS           \
 void code(ostream&); 			   \
-void dump_with_types(ostream&,int); 
+void dump_with_types(ostream&,int); \
+int num_locals();
 
 
 #endif

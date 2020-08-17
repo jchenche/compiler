@@ -5,9 +5,11 @@
 #include "symtab.h"
 #include <unordered_map>
 #include <vector>
+#include <algorithm>
 
 using std::unordered_map;
 using std::vector;
+using std::max;
 
 enum Basicness     {Basic, NotBasic};
 #define TRUE 1
@@ -28,6 +30,7 @@ private:
   int boolclasstag;
 
   void build_class_tag_table();
+  void fill_local_variable_slots();
 
   // The following methods emit code for
   // constants and global declarations.
