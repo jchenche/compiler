@@ -509,9 +509,9 @@ void BoolConst::code_def(ostream& s, int boolclasstag)
 
 
 // Class tags are based on their order in class list (except Str, Int, Bool, they come first)
-static int class_tag = 0;
 static unordered_map<std::string, vector<std::string> > attr_names;
 static unordered_map<std::string, vector<std::pair<std::string, vector<std::string> > > > param_names;
+static unordered_map<std::string, int> class_tags;
 
 
 void CgenClassTable::code_global_data()
@@ -635,22 +635,30 @@ static void gather_attr_and_params_names(CgenNode* nd)
   }
 }
 
+void CgenClassTable::build_class_tag_table() {
+  int class_tag = 0;
+  for(List<CgenNode> *l = nds; l; l = l->tl())
+    class_tags[l->hd()->get_name()->get_string()] = class_tag++;
+}
+
 CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
 {
-   stringclasstag = class_tag++; /* Change to your String class tag here */;
-   intclasstag    = class_tag++; /* Change to your Int class tag here */;
-   boolclasstag   = class_tag++; /* Change to your Bool class tag here */;
+  enterscope();
+  if (cgen_debug) cout << "Building CgenClassTable" << endl;
+  install_basic_classes();
+  install_classes(classes);
+  build_inheritance_tree();
 
-   enterscope();
-   if (cgen_debug) cout << "Building CgenClassTable" << endl;
-   install_basic_classes();
-   install_classes(classes);
-   build_inheritance_tree();
+  if (cgen_debug) cout << "Building class tag table" << endl;
+  build_class_tag_table();
+  stringclasstag = class_tags[Str->get_string()];
+  intclasstag    = class_tags[Int->get_string()];
+  boolclasstag   = class_tags[Bool->get_string()];
 
-   gather_attr_and_params_names(root());
+  gather_attr_and_params_names(root());
 
-   code();
-   exitscope();
+  code();
+  exitscope();
 }
 
 // Features from class A (saved as first parameter) will fill in table (param/attr names) for A
@@ -668,7 +676,7 @@ void attr_class::gather_variable_names(std::string class_of_feature, CgenNode* n
 }
 
 static int first_of_pair_in_vector(vector<std::pair<std::string, vector<std::string> > > v,
-                                    std::string e)
+                                   std::string e)
 {
   int size = v.size();
   for (int i = 0; i < size; ++i)
@@ -888,20 +896,10 @@ void CgenClassTable::code_class_nameTab()
 {
   str << CLASSNAMETAB << LABEL;
 
-  StringEntry* Str_str_sym = stringtable.lookup_string(Str->get_string());
-  str << WORD; Str_str_sym->code_ref(str); str << endl;
-
-  StringEntry* Int_str_sym = stringtable.lookup_string(Int->get_string());
-  str << WORD; Int_str_sym->code_ref(str); str << endl;
-
-  StringEntry* Bool_str_sym = stringtable.lookup_string(Bool->get_string());
-  str << WORD; Bool_str_sym->code_ref(str); str << endl;
-
   StringEntry* class_sym;
 
   for(List<CgenNode> *l = nds; l; l = l->tl()) {
     class_sym = stringtable.lookup_string(l->hd()->get_name()->get_string());
-    if (class_sym == Str_str_sym || class_sym == Int_str_sym || class_sym == Bool_str_sym) continue;
     str << WORD; class_sym->code_ref(str); str << endl;
   }
 }
@@ -910,23 +908,10 @@ void CgenClassTable::code_class_objTab()
 {
   str << CLASSOBJTAB << LABEL;
 
-  StringEntry* Str_str_sym = stringtable.lookup_string(Str->get_string());
-  str << WORD << Str_str_sym << PROTOBJ_SUFFIX << endl;
-  str << WORD << Str_str_sym << CLASSINIT_SUFFIX << endl;
-
-  StringEntry* Int_str_sym = stringtable.lookup_string(Int->get_string());
-  str << WORD << Int_str_sym << PROTOBJ_SUFFIX << endl;
-  str << WORD << Int_str_sym << CLASSINIT_SUFFIX << endl;
-
-  StringEntry* Bool_str_sym = stringtable.lookup_string(Bool->get_string());
-  str << WORD << Bool_str_sym << PROTOBJ_SUFFIX << endl;
-  str << WORD << Bool_str_sym << CLASSINIT_SUFFIX << endl;
-
   StringEntry* class_sym;
 
   for(List<CgenNode> *l = nds; l; l = l->tl()) {
     class_sym = stringtable.lookup_string(l->hd()->get_name()->get_string());
-    if (class_sym == Str_str_sym || class_sym == Int_str_sym || class_sym == Bool_str_sym) continue;
     str << WORD << class_sym << PROTOBJ_SUFFIX << endl;
     str << WORD << class_sym << CLASSINIT_SUFFIX << endl;
   }
@@ -934,7 +919,11 @@ void CgenClassTable::code_class_objTab()
 
 void CgenClassTable::code_proto_Obj()
 {
+  std::string class_name;
 
+  for(List<CgenNode> *l = nds; l; l = l->tl()) {
+
+  }
 }
 
 void CgenClassTable::code_dispatchTab()
