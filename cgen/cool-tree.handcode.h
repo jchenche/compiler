@@ -8,6 +8,7 @@
 #include "tree.h"
 #include "cool.h"
 #include "stringtab.h"
+
 #define yylineno curr_lineno;
 extern int yylineno;
 
@@ -21,6 +22,9 @@ void assert_Symbol(Symbol b);
 Symbol copy_Symbol(Symbol b);
 
 class CgenNode;
+class Locator;
+template<class SYM, class DAT>
+class SymbolTable;
 
 class Program_class;
 typedef Program_class *Program;
@@ -77,13 +81,15 @@ void gather_local_slots();
 #define Feature_EXTRAS                                        \
 virtual void dump_with_types(ostream&,int) = 0; \
 virtual void gather_variable_names(std::string, CgenNode*) = 0; \
-virtual void gather_local_slots(Class_) = 0;
+virtual void gather_local_slots(Class_) = 0; \
+virtual void code_attr_init(SymbolTable<std::string, Locator>*, ostream&) = 0;
 
 
 #define Feature_SHARED_EXTRAS                                       \
 void dump_with_types(ostream&,int);    \
 void gather_variable_names(std::string, CgenNode*); \
-void gather_local_slots(Class_);
+void gather_local_slots(Class_); \
+void code_attr_init(SymbolTable<std::string, Locator>*, ostream&);
 
 
 #define Formal_EXTRAS                              \

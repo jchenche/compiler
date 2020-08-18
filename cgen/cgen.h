@@ -82,6 +82,7 @@ public:
   void set_parentnd(CgenNodeP p);
   CgenNodeP get_parentnd() { return parentnd; }
   int basic() { return (basic_status == Basic); }
+  void code_init(ostream&);
 };
 
 class BoolConst {
@@ -93,3 +94,12 @@ public:
   void code_ref(ostream&) const;
 };
 
+class Locator {
+private:
+  Variable_type var_type;
+  int offset;
+public:
+  Locator(Variable_type, int);
+  Variable_type get_var_type() { return var_type; }
+  int get_offset() { return offset; }
+};

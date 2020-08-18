@@ -384,11 +384,7 @@ void StringEntry::code_ref(ostream& s)
   s << STRCONST_PREFIX << index;
 }
 
-//
 // Emit code for a constant String.
-// You should fill in the code naming the dispatch table.
-//
-
 void StringEntry::code_def(ostream& s, int stringclasstag)
 {
   IntEntryP lensym = inttable.add_int(len);
@@ -400,10 +396,6 @@ void StringEntry::code_def(ostream& s, int stringclasstag)
       << WORD << stringclasstag << endl                                 // tag
       << WORD << (DEFAULT_OBJFIELDS + STRING_SLOTS + (len+4)/4) << endl // size
       << WORD << "String" << DISPTAB_SUFFIX;
-
-
- /***** Add dispatch information for class String [DONE] ******/
-
       s << endl;                                              // dispatch table
       s << WORD;  lensym->code_ref(s);  s << endl;            // string length
   emit_string_constant(s,str);                                // ascii string
@@ -429,11 +421,7 @@ void IntEntry::code_ref(ostream &s)
   s << INTCONST_PREFIX << index;
 }
 
-//
 // Emit code for a constant Integer.
-// You should fill in the code naming the dispatch table.
-//
-
 void IntEntry::code_def(ostream &s, int intclasstag)
 {
   // Add -1 eye catcher
@@ -443,9 +431,6 @@ void IntEntry::code_def(ostream &s, int intclasstag)
       << WORD << intclasstag << endl                      // class tag
       << WORD << (DEFAULT_OBJFIELDS + INT_SLOTS) << endl  // object size
       << WORD << "Int" << DISPTAB_SUFFIX;
-
- /***** Add dispatch information for class Int [DONE] ******/
-
       s << endl;                                          // dispatch table
       s << WORD << str << endl;                           // integer value
 }
@@ -472,12 +457,8 @@ void BoolConst::code_ref(ostream& s) const
 {
   s << BOOLCONST_PREFIX << val;
 }
-  
-//
-// Emit code for a constant Bool.
-// You should fill in the code naming the dispatch table.
-//
 
+// Emit code for a constant Bool.
 void BoolConst::code_def(ostream& s, int boolclasstag)
 {
   // Add -1 eye catcher
@@ -487,9 +468,6 @@ void BoolConst::code_def(ostream& s, int boolclasstag)
       << WORD << boolclasstag << endl                       // class tag
       << WORD << (DEFAULT_OBJFIELDS + BOOL_SLOTS) << endl   // object size
       << WORD  << "Bool" << DISPTAB_SUFFIX;
-
- /***** Add dispatch information for class Bool [DONE] ******/
-
       s << endl;                                            // dispatch table
       s << WORD << val << endl;                             // value (0 or 1)
 }
@@ -499,13 +477,6 @@ void BoolConst::code_def(ostream& s, int boolclasstag)
 //  CgenClassTable methods
 //
 //////////////////////////////////////////////////////////////////////////////
-
-//***************************************************
-//
-//  Emit code to start the .data segment and to
-//  declare the global names.
-//
-//***************************************************
 
 
 // Class tags are based on their order in class list
@@ -521,9 +492,13 @@ static unordered_map<std::string, unordered_map<std::string, int> > method_local
 static unordered_map<std::string, vector<std::pair<std::string, std::string> > > attr_names;
 static unordered_map<std::string, vector<std::pair<std::string, vector<std::string> > > > param_names;
 
-// Find memory location of a variable name by offset($reg) where reg is based on the variable type
-static SymbolTable<std::string, std::pair<Variable_type, int> >* env;
 
+//***************************************************
+//
+//  Emit code to start the .data segment and to
+//  declare the global names.
+//
+//***************************************************
 
 void CgenClassTable::code_global_data()
 {
@@ -725,7 +700,6 @@ CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
 
   gather_attr_and_params_names(root());
 
-  env = new SymbolTable<std::string, std::pair<Variable_type, int> >();
   code();
   exitscope();
 }
@@ -990,7 +964,8 @@ void CgenClassTable::code_proto_Obj()
 
 void CgenClassTable::code_object_init()
 {
-
+  for(List<CgenNode> *l = nds; l; l = l->tl())
+    l->hd()->code_init(str);
 }
 
 void CgenClassTable::code_class_methods()
@@ -1031,38 +1006,84 @@ void CgenClassTable::code()
   code_class_methods();
 }
 
-
 CgenNodeP CgenClassTable::root()
 {
    return probe(Object);
 }
 
 
-///////////////////////////////////////////////////////////////////////
-//
-// CgenNode methods
-//
-///////////////////////////////////////////////////////////////////////
-
 CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTableP ct) :
-   class__class((const class__class &) *nd),
-   parentnd(NULL),
-   children(NULL),
-   basic_status(bstatus)
+  class__class((const class__class &) *nd),
+  parentnd(NULL),
+  children(NULL),
+  basic_status(bstatus)
 { 
-   stringtable.add_string(name->get_string());          // Add class name to string table
+  stringtable.add_string(name->get_string());          // Add class name to string table
+}
+
+Locator::Locator(Variable_type type, int _offset) : var_type(type), offset(_offset) {}
+
+void CgenNode::code_init(ostream& s) {
+  std::string class_name = name->get_string();
+  std::string attr_name;
+  int offset;
+
+  // Memory location of var name is found by offset*MULTIPLIER(reg)
+  // if var type is Attr,  then reg is $s0
+  // if     "    is Param, then reg is $fp
+  // if     "    is Local, then reg is $fp and offset is negated
+  auto env = new SymbolTable<std::string, Locator>();
+
+  env->enterscope();
+
+  offset = DEFAULT_OBJFIELDS;
+  for (auto attr: attr_names[class_name]) {
+    attr_name = attr.first;
+    env->addid(attr_name, new Locator(Attr, offset++));
+  }
+
+  s << class_name << CLASSINIT_SUFFIX << LABEL;
+  emit_push(FP, s);
+  emit_addiu(FP, SP, WORD_SIZE, s); // Current frame pointer points to the old frame pointer
+  emit_addiu(SP,SP,-object_init_local_slots[class_name]*WORD_SIZE, s); // Reserve space for local vars
+  emit_push(SELF, s);
+  emit_push(RA, s);
+  emit_move(SELF, ACC, s);
+
+  if (name != Object) {
+    s << JAL; emit_init_ref(parentnd->get_name(), s); s << endl;
+  }
+
+  for(int i = features->first(); features->more(i); i = features->next(i))
+    features->nth(i)->code_attr_init(env, s);
+
+  emit_move(ACC, SELF, s);
+  emit_load(RA, 1, SP, s);
+  emit_load(SELF, 2, SP, s);
+  emit_load(FP, 0, FP, s);
+  emit_addiu(SP, SP, (3 + object_init_local_slots[class_name])*WORD_SIZE, s);
+
+  env->exitscope();
+  delete env;
+}
+
+// Object init only involves attrs
+void method_class::code_attr_init(SymbolTable<std::string, Locator>* env, ostream& s) {}
+
+void attr_class::code_attr_init(SymbolTable<std::string, Locator>* env, ostream& s) {
+  Locator* locator = env->lookup(name->get_string());
+  char* reg = FP;
+  int offset = locator->get_offset();
+  if (locator->get_var_type() == Attr) reg = SELF;
+  if (locator->get_var_type() == Local) offset = -offset;
+  // Load the memory to $a0, and if init is no_expr(), which emits no code and doesn't override $a0,
+  // then storing $a0 back to the memory doesn't change the value, which is the default value
+  emit_load(ACC, offset, reg, s);
+  init->code(s);
+  emit_store(ACC, offset, reg, s);
 }
 
 
-//******************************************************************
-//
-//   Fill in the following methods to produce code for the
-//   appropriate expression.  You may add or remove parameters
-//   as you wish, but if you do, remember to change the parameters
-//   of the declarations in `cool-tree.h'  Sample code for
-//   constant integers, strings, and booleans are provided.
-//
-//*****************************************************************
 
 void assign_class::code(ostream &s) {
 }

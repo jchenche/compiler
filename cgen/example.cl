@@ -5,7 +5,7 @@ class Main {
 };
 
 class A {
-    a: Int <- 2;
+    a: Int <- {let x: Int <- 3, y: Int in x; let x: Int <- 3 in x;};
 
     f(x1: Int, x2: String): Int { x1 + x1 };
     g(): String { "hello world" };
