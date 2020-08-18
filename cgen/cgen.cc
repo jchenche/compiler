@@ -508,15 +508,21 @@ void BoolConst::code_def(ostream& s, int boolclasstag)
 //***************************************************
 
 
-// Class tags are based on their order in class list (except Str, Int, Bool, they come first)
+// Class tags are based on their order in class list
 static unordered_map<std::string, int> class_tags;
-static unordered_map<std::string, vector<std::pair<std::string, std::string> > > attr_names;
-static unordered_map<std::string, vector<std::pair<std::string, vector<std::string> > > > param_names;
+
 // Reserve space in the stack for local variables
 // object_init_local_slots is used for object init method calls (take the max out of all attrs)
 // method_local_slots is used for normal method calls
 static unordered_map<std::string, int> object_init_local_slots;
 static unordered_map<std::string, unordered_map<std::string, int> > method_local_slots;
+
+// These names are used to determine the offsets for env
+static unordered_map<std::string, vector<std::pair<std::string, std::string> > > attr_names;
+static unordered_map<std::string, vector<std::pair<std::string, vector<std::string> > > > param_names;
+
+// Find memory location of a variable name by offset($reg) where reg is based on the variable type
+static SymbolTable<std::string, std::pair<Variable_type, int> >* env;
 
 
 void CgenClassTable::code_global_data()
@@ -719,6 +725,7 @@ CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
 
   gather_attr_and_params_names(root());
 
+  env = new SymbolTable<std::string, std::pair<Variable_type, int> >();
   code();
   exitscope();
 }

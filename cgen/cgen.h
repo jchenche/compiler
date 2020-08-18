@@ -11,6 +11,7 @@ using std::unordered_map;
 using std::vector;
 using std::max;
 
+enum Variable_type {Attr, Param, Local};
 enum Basicness     {Basic, NotBasic};
 #define TRUE 1
 #define FALSE 0
