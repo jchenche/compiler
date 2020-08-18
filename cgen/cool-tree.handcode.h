@@ -82,14 +82,16 @@ void gather_local_slots();
 virtual void dump_with_types(ostream&,int) = 0; \
 virtual void gather_variable_names(std::string, CgenNode*) = 0; \
 virtual void gather_local_slots(Class_) = 0; \
-virtual void code_attr_init(SymbolTable<std::string, Locator>*, ostream&) = 0;
+virtual void code_attr_init(SymbolTable<std::string, Locator>*, ostream&) = 0; \
+virtual void code_method_def(CgenNode*, ostream&) = 0;
 
 
 #define Feature_SHARED_EXTRAS                                       \
 void dump_with_types(ostream&,int);    \
 void gather_variable_names(std::string, CgenNode*); \
 void gather_local_slots(Class_); \
-void code_attr_init(SymbolTable<std::string, Locator>*, ostream&);
+void code_attr_init(SymbolTable<std::string, Locator>*, ostream&); \
+void code_method_def(CgenNode*, ostream&);
 
 
 #define Formal_EXTRAS                              \
@@ -116,14 +118,14 @@ int num_locals();
 Symbol type;                                 \
 Symbol get_type() { return type; }           \
 Expression set_type(Symbol s) { type = s; return this; } \
-virtual void code(ostream&) = 0; \
+virtual void code(SymbolTable<std::string, Locator>*, int, ostream&) = 0; \
 virtual void dump_with_types(ostream&,int) = 0;  \
 void dump_type(ostream&, int);               \
 Expression_class() { type = (Symbol) NULL; } \
 virtual int num_locals() = 0;
 
 #define Expression_SHARED_EXTRAS           \
-void code(ostream&); 			   \
+void code(SymbolTable<std::string, Locator>*, int, ostream&); 			   \
 void dump_with_types(ostream&,int); \
 int num_locals();
 

@@ -83,6 +83,7 @@ public:
   CgenNodeP get_parentnd() { return parentnd; }
   int basic() { return (basic_status == Basic); }
   void code_init(ostream&);
+  void code_methods(ostream&);
 };
 
 class BoolConst {

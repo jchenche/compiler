@@ -970,7 +970,8 @@ void CgenClassTable::code_object_init()
 
 void CgenClassTable::code_class_methods()
 {
-
+  for(List<CgenNode> *l = nds; l; l = l->tl())
+    if (!l->hd()->basic()) l->hd()->code_methods(str);
 }
 
 void CgenClassTable::code()
@@ -1023,9 +1024,20 @@ CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTableP ct) :
 
 Locator::Locator(Variable_type type, int _offset) : var_type(type), offset(_offset) {}
 
-void CgenNode::code_init(ostream& s) {
-  std::string class_name = name->get_string();
+
+void CgenNode::code_methods(ostream& s) {
+  for(int i = features->first(); features->more(i); i = features->next(i))
+    features->nth(i)->code_method_def(this, s);
+}
+
+// Method def only involves methods
+void attr_class::code_method_def(CgenNode* nd, ostream& s) {}
+
+void method_class::code_method_def(CgenNode* nd, ostream& s) {
+  std::string class_name = nd->get_name()->get_string();
+  std::string method_name = name->get_string();
   std::string attr_name;
+  std::string formal_name;
   int offset;
 
   // Memory location of var name is found by offset*MULTIPLIER(reg)
@@ -1035,7 +1047,49 @@ void CgenNode::code_init(ostream& s) {
   auto env = new SymbolTable<std::string, Locator>();
 
   env->enterscope();
+  offset = DEFAULT_OBJFIELDS;
+  for (auto attr: attr_names[class_name]) {
+    attr_name = attr.first;
+    env->addid(attr_name, new Locator(Attr, offset++));
+  }
 
+  env->enterscope();
+  offset = 1;
+  for(int i = formals->first(); formals->more(i); i = formals->next(i)) {
+    formal_name = formals->nth(i)->get_name()->get_string();
+    env->addid(formal_name, new Locator(Param, offset++));
+  }
+
+  s << class_name + "." + method_name << LABEL;
+  emit_push(FP, s);
+  emit_addiu(FP, SP, WORD_SIZE, s); // Set current FP to point to the old FP
+  emit_addiu(SP,SP,-object_init_local_slots[class_name]*WORD_SIZE, s); // Reserve space for local vars
+  emit_push(SELF, s);
+  emit_push(RA, s);
+  emit_move(SELF, ACC, s);
+
+  expr->code(env, 1, s);
+
+  emit_move(ACC, SELF, s);
+  emit_load(RA, 1, SP, s);
+  emit_load(SELF, 2, SP, s);
+  emit_load(FP, 0, FP, s);
+  emit_addiu(SP, SP, (formals->len() + 3 + object_init_local_slots[class_name])*WORD_SIZE, s);
+  emit_return(s);
+
+  env->exitscope();
+  env->exitscope();
+  delete env;
+}
+
+
+void CgenNode::code_init(ostream& s) {
+  std::string class_name = name->get_string();
+  std::string attr_name;
+  int offset;
+  auto env = new SymbolTable<std::string, Locator>();
+
+  env->enterscope();
   offset = DEFAULT_OBJFIELDS;
   for (auto attr: attr_names[class_name]) {
     attr_name = attr.first;
@@ -1044,7 +1098,7 @@ void CgenNode::code_init(ostream& s) {
 
   s << class_name << CLASSINIT_SUFFIX << LABEL;
   emit_push(FP, s);
-  emit_addiu(FP, SP, WORD_SIZE, s); // Current frame pointer points to the old frame pointer
+  emit_addiu(FP, SP, WORD_SIZE, s); // Set current FP to point to the old FP
   emit_addiu(SP,SP,-object_init_local_slots[class_name]*WORD_SIZE, s); // Reserve space for local vars
   emit_push(SELF, s);
   emit_push(RA, s);
@@ -1062,6 +1116,7 @@ void CgenNode::code_init(ostream& s) {
   emit_load(SELF, 2, SP, s);
   emit_load(FP, 0, FP, s);
   emit_addiu(SP, SP, (3 + object_init_local_slots[class_name])*WORD_SIZE, s);
+  emit_return(s);
 
   env->exitscope();
   delete env;
@@ -1079,86 +1134,86 @@ void attr_class::code_attr_init(SymbolTable<std::string, Locator>* env, ostream&
   // Load the memory to $a0, and if init is no_expr(), which emits no code and doesn't override $a0,
   // then storing $a0 back to the memory doesn't change the value, which is the default value
   emit_load(ACC, offset, reg, s);
-  init->code(s);
+  init->code(env, 1, s);
   emit_store(ACC, offset, reg, s);
 }
 
 
 
-void assign_class::code(ostream &s) {
+void assign_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void static_dispatch_class::code(ostream &s) {
+void static_dispatch_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void dispatch_class::code(ostream &s) {
+void dispatch_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void cond_class::code(ostream &s) {
+void cond_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void loop_class::code(ostream &s) {
+void loop_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void typcase_class::code(ostream &s) {
+void typcase_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void block_class::code(ostream &s) {
+void block_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void let_class::code(ostream &s) {
+void let_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void plus_class::code(ostream &s) {
+void plus_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void sub_class::code(ostream &s) {
+void sub_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void mul_class::code(ostream &s) {
+void mul_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void divide_class::code(ostream &s) {
+void divide_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void neg_class::code(ostream &s) {
+void neg_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void lt_class::code(ostream &s) {
+void lt_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void eq_class::code(ostream &s) {
+void eq_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void leq_class::code(ostream &s) {
+void leq_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void comp_class::code(ostream &s) {
+void comp_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void int_const_class::code(ostream& s) {
+void int_const_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream& s) {
   // Need to be sure we have an IntEntry *, not an arbitrary Symbol
   emit_load_int(ACC,inttable.lookup_string(token->get_string()),s);
 }
 
-void string_const_class::code(ostream& s) {
+void string_const_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream& s) {
   emit_load_string(ACC,stringtable.lookup_string(token->get_string()),s);
 }
 
-void bool_const_class::code(ostream& s) {
+void bool_const_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream& s) {
   emit_load_bool(ACC, BoolConst(val), s);
 }
 
-void new__class::code(ostream &s) {
+void new__class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void isvoid_class::code(ostream &s) {
+void isvoid_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void no_expr_class::code(ostream &s) {
+void no_expr_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void object_class::code(ostream &s) {
+void object_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
 
