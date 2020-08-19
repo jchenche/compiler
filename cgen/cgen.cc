@@ -322,6 +322,12 @@ static void emit_push(char *reg, ostream& str)
   emit_addiu(SP,SP,-4,str);
 }
 
+static void emit_pop(char *reg, ostream& str)
+{
+  emit_load(reg,1,SP,str);
+  emit_addiu(SP,SP,4,str);
+}
+
 //
 // Fetch the integer value in an Int object.
 // Emits code to fetch the integer value of the Integer object pointed
@@ -337,6 +343,11 @@ static void emit_fetch_int(char *dest, char *source, ostream& s)
 static void emit_store_int(char *source, char *dest, ostream& s)
 { emit_store(source, DEFAULT_OBJFIELDS, dest, s); }
 
+static void emit_fetch_bool(char *dest, char *source, ostream& s)
+{ emit_load(dest, DEFAULT_OBJFIELDS, source, s); }
+
+static void emit_store_bool(char *source, char *dest, ostream& s)
+{ emit_store(source, DEFAULT_OBJFIELDS, dest, s); }
 
 static void emit_test_collector(ostream &s)
 {
@@ -395,7 +406,7 @@ void StringEntry::code_def(ostream& s, int stringclasstag)
   code_ref(s);  s  << LABEL                                             // label
       << WORD << stringclasstag << endl                                 // tag
       << WORD << (DEFAULT_OBJFIELDS + STRING_SLOTS + (len+4)/4) << endl // size
-      << WORD << "String" << DISPTAB_SUFFIX;
+      << WORD << Str << DISPTAB_SUFFIX;
       s << endl;                                              // dispatch table
       s << WORD;  lensym->code_ref(s);  s << endl;            // string length
   emit_string_constant(s,str);                                // ascii string
@@ -430,7 +441,7 @@ void IntEntry::code_def(ostream &s, int intclasstag)
   code_ref(s);  s << LABEL                                // label
       << WORD << intclasstag << endl                      // class tag
       << WORD << (DEFAULT_OBJFIELDS + INT_SLOTS) << endl  // object size
-      << WORD << "Int" << DISPTAB_SUFFIX;
+      << WORD << Int << DISPTAB_SUFFIX;
       s << endl;                                          // dispatch table
       s << WORD << str << endl;                           // integer value
 }
@@ -467,7 +478,7 @@ void BoolConst::code_def(ostream& s, int boolclasstag)
   code_ref(s);  s << LABEL                                  // label
       << WORD << boolclasstag << endl                       // class tag
       << WORD << (DEFAULT_OBJFIELDS + BOOL_SLOTS) << endl   // object size
-      << WORD  << "Bool" << DISPTAB_SUFFIX;
+      << WORD  << Bool << DISPTAB_SUFFIX;
       s << endl;                                            // dispatch table
       s << WORD << val << endl;                             // value (0 or 1)
 }
@@ -491,6 +502,8 @@ static unordered_map<std::string, unordered_map<std::string, int> > method_local
 // These names are used to determine the offsets for env
 static unordered_map<std::string, vector<std::pair<std::string, std::string> > > attr_names;
 static unordered_map<std::string, vector<std::pair<std::string, std::string> > > full_method_names;
+
+static int label_num = 0;
 
 
 //***************************************************
@@ -1057,9 +1070,8 @@ void method_class::code_method_def(CgenNode* nd, ostream& s) {
   emit_push(RA, s);
   emit_move(SELF, ACC, s);
 
-  expr->code(env, 1, s);
+  expr->code(nd, env, 1, s);
 
-  emit_move(ACC, SELF, s);
   emit_load(RA, 1, SP, s);
   emit_load(SELF, 2, SP, s);
   emit_load(FP, 0, FP, s);
@@ -1098,7 +1110,7 @@ void CgenNode::code_init(ostream& s) {
   }
 
   for(int i = features->first(); features->more(i); i = features->next(i))
-    features->nth(i)->code_attr_init(env, s);
+    features->nth(i)->code_attr_init(this, env, s);
 
   emit_move(ACC, SELF, s);
   emit_load(RA, 1, SP, s);
@@ -1112,9 +1124,9 @@ void CgenNode::code_init(ostream& s) {
 }
 
 // Object init only involves attrs
-void method_class::code_attr_init(SymbolTable<std::string, Locator>* env, ostream& s) {}
+void method_class::code_attr_init(CgenNode* nd, SymbolTable<std::string, Locator>* env, ostream& s) {}
 
-void attr_class::code_attr_init(SymbolTable<std::string, Locator>* env, ostream& s) {
+void attr_class::code_attr_init(CgenNode* nd, SymbolTable<std::string, Locator>* env, ostream& s) {
   Locator* locator = env->lookup(name->get_string());
   char* reg = FP;
   int offset = locator->get_offset();
@@ -1123,86 +1135,113 @@ void attr_class::code_attr_init(SymbolTable<std::string, Locator>* env, ostream&
   // Load the memory to $a0, and if init is no_expr(), which emits no code and doesn't override $a0,
   // then storing $a0 back to the memory doesn't change the value, which is the default value
   emit_load(ACC, offset, reg, s);
-  init->code(env, 1, s);
+  init->code(nd, env, 1, s);
   emit_store(ACC, offset, reg, s);
 }
 
 
 
-void assign_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void assign_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+  Locator* locator = env->lookup(name->get_string());
+  char* reg = FP;
+  int offset = locator->get_offset();
+  if (locator->get_var_type() == Attr) reg = SELF;
+  if (locator->get_var_type() == Local) offset = -offset;
+  expr->code(nd, env, local_slot, s);
+  emit_store(ACC, offset, reg, s);
 }
 
-void static_dispatch_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void static_dispatch_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void dispatch_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void dispatch_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void cond_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void cond_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void loop_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void loop_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void typcase_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void typcase_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void block_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void block_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+  for(int i = body->first(); body->more(i); i = body->next(i))
+    body->nth(i)->code(nd, env, local_slot, s);
 }
 
-void let_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void let_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void plus_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void plus_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+
 }
 
-void sub_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void sub_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void mul_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void mul_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void divide_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void divide_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void neg_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void neg_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+
 }
 
-void lt_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void lt_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void eq_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void eq_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void leq_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void leq_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void comp_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void comp_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+  e1->code(nd, env, local_slot, s); // ACC now contains a Bool object
+  emit_fetch_bool(T1, ACC, s);
+  emit_load_bool(ACC, BoolConst(1), s);
+  emit_beqz(T1, label_num, s);
+  emit_load_bool(ACC, BoolConst(0), s);
+  emit_label_def(label_num++, s);
 }
 
-void int_const_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream& s) {
+void int_const_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream& s) {
   // Need to be sure we have an IntEntry *, not an arbitrary Symbol
   emit_load_int(ACC,inttable.lookup_string(token->get_string()),s);
 }
 
-void string_const_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream& s) {
+void string_const_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream& s) {
   emit_load_string(ACC,stringtable.lookup_string(token->get_string()),s);
 }
 
-void bool_const_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream& s) {
+void bool_const_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream& s) {
   emit_load_bool(ACC, BoolConst(val), s);
 }
 
-void new__class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void new__class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void isvoid_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void isvoid_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void no_expr_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
-}
+// Emit nothing for no_expr() because it simply doesn't have anything
+void no_expr_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {}
 
-void object_class::code(SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void object_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+  if (name == self) {
+    emit_move(ACC, SELF, s);
+    return;
+  }
+  Locator* locator = env->lookup(name->get_string());
+  char* reg = FP;
+  int offset = locator->get_offset();
+  if (locator->get_var_type() == Attr) reg = SELF;
+  if (locator->get_var_type() == Local) offset = -offset;
+  emit_load(ACC, offset, reg, s);
 }
 
 
