@@ -1158,6 +1158,15 @@ void dispatch_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, 
 }
 
 void cond_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+  pred->code(nd, env, local_slot, s);
+  emit_fetch_bool(T1, ACC, s);
+  emit_beqz(T1, label_num, s);
+  then_exp->code(nd, env, local_slot, s);
+  emit_branch(label_num + 1, s);
+  emit_label_def(label_num, s);
+  else_exp->code(nd, env, local_slot, s);
+  emit_label_def(label_num + 1, s);
+  label_num += 2;
 }
 
 void loop_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
@@ -1188,16 +1197,50 @@ void divide_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, in
 }
 
 void neg_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
-
+  e1->code(nd, env, local_slot, s); // ACC now contains an Int object
+  s << JAL << Object << METHOD_SEP << "copy" << endl;
+  emit_fetch_int(T1, ACC, s);
+  emit_neg(T1, T1, s);
+  emit_store_int(T1, ACC, s);
 }
 
 void lt_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+  e1->code(nd, env, local_slot, s);
+  emit_push(ACC, s);  
+  e2->code(nd, env, local_slot, s);
+  emit_move(T2, ACC, s);
+  emit_fetch_int(T2, T2, s);
+  emit_pop(T1, s);
+  emit_fetch_int(T1, T1, s);
+  emit_load_bool(ACC, BoolConst(1), s);
+  emit_blt(T1, T2, label_num, s);
+  emit_load_bool(ACC, BoolConst(0), s);
+  emit_label_def(label_num++, s);
 }
 
 void eq_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+  e1->code(nd, env, local_slot, s);
+  emit_push(ACC, s);
+  e2->code(nd, env, local_slot, s);
+  emit_move(T2, ACC, s);
+  emit_pop(T1, s);
+  emit_load_bool(ACC, BoolConst(1), s);
+  emit_load_bool(A1, BoolConst(0), s);
+  s << JAL << "equality_test" << endl;
 }
 
 void leq_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+  e1->code(nd, env, local_slot, s);
+  emit_push(ACC, s);  
+  e2->code(nd, env, local_slot, s);
+  emit_move(T2, ACC, s);
+  emit_fetch_int(T2, T2, s);
+  emit_pop(T1, s);
+  emit_fetch_int(T1, T1, s);
+  emit_load_bool(ACC, BoolConst(1), s);
+  emit_bleq(T1, T2, label_num, s);
+  emit_load_bool(ACC, BoolConst(0), s);
+  emit_label_def(label_num++, s);
 }
 
 void comp_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
@@ -1226,6 +1269,12 @@ void new__class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int 
 }
 
 void isvoid_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+  e1->code(nd, env, local_slot, s);
+  emit_move(T1, ACC, s);
+  emit_load_bool(ACC, BoolConst(1), s);
+  emit_beqz(T1, label_num, s);
+  emit_load_bool(ACC, BoolConst(0), s);
+  emit_label_def(label_num++, s);
 }
 
 // Emit nothing for no_expr() because it simply doesn't have anything
