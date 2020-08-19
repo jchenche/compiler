@@ -1127,15 +1127,21 @@ void CgenNode::code_init(ostream& s) {
 void method_class::code_attr_init(CgenNode* nd, SymbolTable<std::string, Locator>* env, ostream& s) {}
 
 void attr_class::code_attr_init(CgenNode* nd, SymbolTable<std::string, Locator>* env, ostream& s) {
+  emit_partial_load_address(ACC, s);
+  if      (type_decl == Str)  stringtable.lookup_string("")->code_ref(s);
+  else if (type_decl == Int)  inttable.lookup_string("0")->code_ref(s);
+  else if (type_decl == Bool) falsebool.code_ref(s);
+  else s << 0; // Default value for everything else is void (represented by 0)
+  s << endl;
+
+  init->code(nd, env, 1, s); // Could be no_expr(), hence the above code
+
   Locator* locator = env->lookup(name->get_string());
   char* reg = FP;
   int offset = locator->get_offset();
   if (locator->get_var_type() == Attr) reg = SELF;
   if (locator->get_var_type() == Local) offset = -offset;
-  // Load the memory to $a0, and if init is no_expr(), which emits no code and doesn't override $a0,
-  // then storing $a0 back to the memory doesn't change the value, which is the default value
-  emit_load(ACC, offset, reg, s);
-  init->code(nd, env, 1, s);
+
   emit_store(ACC, offset, reg, s);
 }
 
