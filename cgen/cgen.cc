@@ -1183,17 +1183,34 @@ void block_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int
 void let_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
 }
 
-void plus_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+static void code_arithmetic(Expression e1, Expression e2,
+                            CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s,
+                            std::function<void(char*, char*, char*, ostream&)> arith_emitter) {
+  e1->code(nd, env, local_slot, s);
+  emit_push(ACC, s);
+  e2->code(nd, env, local_slot, s);
+  s << JAL << Object << METHOD_SEP << "copy" << endl;
+  emit_pop(T1, s);
+  emit_fetch_int(T1, T1, s);
+  emit_fetch_int(T2, ACC, s);
+  arith_emitter(T1, T1, T2, s);
+  emit_store_int(T1, ACC, s);
+}
 
+void plus_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+  code_arithmetic(e1, e2, nd, env, local_slot, s, emit_add);
 }
 
 void sub_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+  code_arithmetic(e1, e2, nd, env, local_slot, s, emit_sub);
 }
 
 void mul_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+  code_arithmetic(e1, e2, nd, env, local_slot, s, emit_mul);
 }
 
 void divide_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+  code_arithmetic(e1, e2, nd, env, local_slot, s, emit_div);
 }
 
 void neg_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
@@ -1204,7 +1221,9 @@ void neg_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int l
   emit_store_int(T1, ACC, s);
 }
 
-void lt_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+static void code_comparison(Expression e1, Expression e2,
+                            CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s,
+                            std::function<void(char*, char*, int, ostream&)> comp_emitter) {
   e1->code(nd, env, local_slot, s);
   emit_push(ACC, s);  
   e2->code(nd, env, local_slot, s);
@@ -1213,9 +1232,17 @@ void lt_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int lo
   emit_pop(T1, s);
   emit_fetch_int(T1, T1, s);
   emit_load_bool(ACC, BoolConst(1), s);
-  emit_blt(T1, T2, label_num, s);
+  comp_emitter(T1, T2, label_num, s);
   emit_load_bool(ACC, BoolConst(0), s);
   emit_label_def(label_num++, s);
+}
+
+void lt_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+  code_comparison(e1, e2, nd, env, local_slot, s, emit_blt);
+}
+
+void leq_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+  code_comparison(e1, e2, nd, env, local_slot, s, emit_bleq);
 }
 
 void eq_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
@@ -1227,20 +1254,6 @@ void eq_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int lo
   emit_load_bool(ACC, BoolConst(1), s);
   emit_load_bool(A1, BoolConst(0), s);
   s << JAL << "equality_test" << endl;
-}
-
-void leq_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
-  e1->code(nd, env, local_slot, s);
-  emit_push(ACC, s);  
-  e2->code(nd, env, local_slot, s);
-  emit_move(T2, ACC, s);
-  emit_fetch_int(T2, T2, s);
-  emit_pop(T1, s);
-  emit_fetch_int(T1, T1, s);
-  emit_load_bool(ACC, BoolConst(1), s);
-  emit_bleq(T1, T2, label_num, s);
-  emit_load_bool(ACC, BoolConst(0), s);
-  emit_label_def(label_num++, s);
 }
 
 void comp_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
