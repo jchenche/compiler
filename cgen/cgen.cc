@@ -623,13 +623,13 @@ void CgenClassTable::code_constants()
 }
 
 // Go through all nodes from root to descendants to gather all attr and param names
-static void gather_attr_and_params_names(CgenNode* nd) {
+static void gather_attr_and_full_method_names(CgenNode* nd) {
   Features features = nd->get_features();
   for(int i = features->first(); features->more(i); i = features->next(i)) {
     features->nth(i)->gather_variable_names(nd->get_name()->get_string(), nd);
   }
   for(List<CgenNode> *l = nd->get_children(); l; l = l->tl()) {
-    gather_attr_and_params_names(l->hd());
+    gather_attr_and_full_method_names(l->hd());
   }
 }
 
@@ -699,7 +699,7 @@ CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
   intclasstag    = class_tags[Int->get_string()];
   boolclasstag   = class_tags[Bool->get_string()];
 
-  gather_attr_and_params_names(root());
+  gather_attr_and_full_method_names(root());
 
   code();
   exitscope();
@@ -1158,9 +1158,57 @@ void assign_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, in
 }
 
 void static_dispatch_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+  std::vector<Expression> exprs;
+  for(int i = actual->first(); actual->more(i); i = actual->next(i))
+    exprs.push_back(actual->nth(i));
+  std::reverse(exprs.begin(), exprs.end());
+  for (auto e: exprs) {
+    e->code(nd, env, local_slot, s);
+    emit_push(ACC, s);
+  }
+
+  expr->code(nd, env, local_slot, s);
+  emit_bne(ACC, ZERO, label_num, s); // Make sure we are not dispatching on void
+  emit_load_string(ACC, stringtable.lookup_string(nd->get_filename()->get_string()), s);
+  emit_load_imm(T1, 1, s);
+  s << JAL << "_dispatch_abort" << endl;
+
+  emit_label_def(label_num++, s);
+  emit_partial_load_address(T1, s); s << type_name << DISPTAB_SUFFIX << endl;
+
+  int method_idx = first_of_pair_in_vector(full_method_names[type_name->get_string()], name->get_string());
+  assert(method_idx != -1); // static dispatch type must have the method we are dispatching (semantic analysis)
+
+  emit_load(T1, method_idx, T1, s);
+  emit_jalr(T1, s);
 }
 
 void dispatch_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+  std::vector<Expression> exprs;
+  for(int i = actual->first(); actual->more(i); i = actual->next(i))
+    exprs.push_back(actual->nth(i));
+  std::reverse(exprs.begin(), exprs.end());
+  for (auto e: exprs) {
+    e->code(nd, env, local_slot, s);
+    emit_push(ACC, s);
+  }
+
+  expr->code(nd, env, local_slot, s);
+  emit_bne(ACC, ZERO, label_num, s); // Make sure we are not dispatching on void
+  emit_load_string(ACC, stringtable.lookup_string(nd->get_filename()->get_string()), s);
+  emit_load_imm(T1, 1, s);
+  s << JAL << "_dispatch_abort" << endl;
+
+  emit_label_def(label_num++, s);
+  emit_load(T1, DISPTABLE_OFFSET, ACC, s);
+
+  Symbol static_type = expr->get_type();
+  if (static_type == SELF_TYPE) static_type = nd->get_name();
+  int method_idx = first_of_pair_in_vector(full_method_names[static_type->get_string()], name->get_string());
+  assert(method_idx != -1); // Static type of expr must have the method we are dispatching (semantic analysis)
+
+  emit_load(T1, method_idx, T1, s);
+  emit_jalr(T1, s);
 }
 
 void cond_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
@@ -1187,6 +1235,20 @@ void block_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int
 }
 
 void let_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+  // emit_partial_load_address(ACC, s);
+  // if      (type_decl == Str)  stringtable.lookup_string("")->code_ref(s);
+  // else if (type_decl == Int)  inttable.lookup_string("0")->code_ref(s);
+  // else if (type_decl == Bool) falsebool.code_ref(s);
+  // else s << 0; // Default value for everything else is void (represented by 0)
+  // s << endl;
+
+  // init->code(nd, env, local_slot, s); // Could be no_expr(), hence the above code
+
+  // env->enterscope();
+  // env->addid(identifier->get_string(), new Locator(Local, local_slot));
+  // emit_store(ACC, -local_slot, FP, s);
+  // body->code(nd, env, local_slot + 1, s);
+  // env->exitscope();
 }
 
 static void code_arithmetic(Expression e1, Expression e2,
