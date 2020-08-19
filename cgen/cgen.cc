@@ -1214,13 +1214,17 @@ void dispatch_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, 
 void cond_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
   pred->code(nd, env, local_slot, s);
   emit_fetch_bool(T1, ACC, s);
-  emit_beqz(T1, label_num, s);
+  int else_label = label_num++;
+  emit_beqz(T1, else_label, s);
+
   then_exp->code(nd, env, local_slot, s);
-  emit_branch(label_num + 1, s);
-  emit_label_def(label_num, s);
+  int after_cond_label = label_num++;
+  emit_branch(after_cond_label, s);
+
+  emit_label_def(else_label, s);
   else_exp->code(nd, env, local_slot, s);
-  emit_label_def(label_num + 1, s);
-  label_num += 2;
+
+  emit_label_def(after_cond_label, s);
 }
 
 void loop_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
