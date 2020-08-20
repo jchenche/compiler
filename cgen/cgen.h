@@ -83,6 +83,7 @@ public:
   void set_parentnd(CgenNodeP p);
   CgenNodeP get_parentnd() { return parentnd; }
   int basic() { return (basic_status == Basic); }
+  void gather_local_slots();
   void code_init(ostream&);
   void code_methods(ostream&);
 };

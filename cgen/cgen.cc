@@ -1377,10 +1377,9 @@ void new__class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int 
   if (type_name == SELF_TYPE) emit_load(T2, 0, SELF, s);
   else                        emit_load_imm(T2, class_tags[type_name->get_string()], s);
 
-  // tag * (2*WORD_SIZE) of class_objTab has the protObj for the class associated with the tag
+  // tag * 8 of class_objTab has the protObj for the class associated with the tag
   emit_load_address(T1, CLASSOBJTAB, s);
-  emit_load_imm(T3, 2*WORD_SIZE, s);
-  emit_mul(T2, T2, T3, s);
+  emit_sll(T2, T2, 3, s);
   emit_add(T1, T1, T2, s);
   emit_load(ACC, 0, T1, s);
 
@@ -1388,9 +1387,8 @@ void new__class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int 
   s << JAL << Object << METHOD_SEP << "copy" << endl;
   emit_pop(T1, s);
 
-  // tag * (2*WORD_SIZE) + WORD_SIZE of class_objTab has the obj init for the class associated with the tag
-  emit_addiu(T1, T1, WORD_SIZE, s);
-  emit_load(T1, 0, T1, s);
+  // tag * 8 + 4 of class_objTab has the obj init for the class associated with the tag
+  emit_load(T1, 1, T1, s);
   emit_jalr(T1, s);
 }
 
@@ -1421,7 +1419,7 @@ void object_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, in
 
 
 
-void class__class::gather_local_slots() {
+void CgenNode::gather_local_slots() {
   for(int i = features->first(); features->more(i); i = features->next(i))
     features->nth(i)->gather_local_slots(this);
 }
