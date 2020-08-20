@@ -1065,7 +1065,7 @@ void method_class::code_method_def(CgenNode* nd, ostream& s) {
   s << class_name + METHOD_SEP + method_name << LABEL;
   emit_push(FP, s);
   emit_addiu(FP, SP, WORD_SIZE, s); // Set current FP to point to the old FP
-  emit_addiu(SP, SP, -object_init_local_slots[class_name]*WORD_SIZE, s); // Reserved for local vars
+  emit_addiu(SP, SP, -method_local_slots[class_name][method_name]*WORD_SIZE, s); // Reserved for local vars
   emit_push(SELF, s);
   emit_push(RA, s);
   emit_move(SELF, ACC, s);
@@ -1075,7 +1075,7 @@ void method_class::code_method_def(CgenNode* nd, ostream& s) {
   emit_load(RA, 1, SP, s);
   emit_load(SELF, 2, SP, s);
   emit_load(FP, 0, FP, s);
-  emit_addiu(SP, SP, (formals->len() + 3 + object_init_local_slots[class_name])*WORD_SIZE, s);
+  emit_addiu(SP, SP, (formals->len() + 3 + method_local_slots[class_name][method_name])*WORD_SIZE, s);
   emit_return(s);
 
   env->exitscope();
