@@ -52,7 +52,7 @@ typedef Cases_class *Cases;
 
 #define Program_EXTRAS                          \
 virtual void cgen(ostream&) = 0;		\
-virtual void dump_with_types(ostream&, int) = 0; 
+virtual void dump_with_types(ostream&, int) = 0; // Pure virtual function
 
 
 
@@ -104,12 +104,16 @@ Symbol get_name() { return name; }
 
 #define Case_EXTRAS                             \
 virtual void dump_with_types(ostream& ,int) = 0; \
-virtual int num_locals() = 0;
+virtual void code(CgenNode*, SymbolTable<std::string, Locator>*, int, ostream&) = 0; \
+virtual int num_locals() = 0; \
+virtual Symbol get_type_decl() = 0;
 
 
 #define branch_EXTRAS                                   \
 void dump_with_types(ostream& ,int); \
-int num_locals();
+void code(CgenNode*, SymbolTable<std::string, Locator>*, int, ostream&); \
+int num_locals(); \
+Symbol get_type_decl() { return type_decl; }
 
 
 #define Expression_EXTRAS                    \

@@ -31,9 +31,14 @@ private:
   int intclasstag;
   int boolclasstag;
 
+  void fill_local_variable_slots();
+
   void build_class_tag_table(CgenNode*, int&);
   void build_class_tag_table();
-  void fill_local_variable_slots();
+
+  void get_right_most_descendants(std::string, CgenNode*);
+  void build_right_most_descendants();
+
   void gather_attr_and_full_method_names(CgenNode*);
 
   // The following methods emit code for
@@ -47,6 +52,7 @@ private:
 
   void code_class_nameTab(CgenNode*);
   void code_class_nameTab();
+
   void code_class_objTab(CgenNode*);
   void code_class_objTab();
 

@@ -493,6 +493,8 @@ void BoolConst::code_def(ostream& s, int boolclasstag)
 // Class tags are based on their left-to-right DFS ordering from CgenClassTable's root()
 static unordered_map<std::string, int> class_tags;
 
+static unordered_map<std::string, std::string> right_most_descendants;
+
 // Reserve space in the stack for local variables
 // object_init_local_slots is used for object init method calls (take the max out of all attrs)
 // method_local_slots is used for normal method calls
@@ -622,6 +624,39 @@ void CgenClassTable::code_constants()
   code_bools(boolclasstag);
 }
 
+void CgenClassTable::fill_local_variable_slots() {
+  for(List<CgenNode> *l = nds; l; l = l->tl()) {
+    object_init_local_slots[l->hd()->get_name()->get_string()] = 0; // Some classes have no attrs
+    if (!l->hd()->basic()) l->hd()->gather_local_slots();
+  }
+}
+
+void CgenClassTable::build_class_tag_table(CgenNode* nd, int& class_tag) {
+  class_tags[nd->get_name()->get_string()] = class_tag++;
+  for(List<CgenNode> *l = nd->get_children(); l; l = l->tl())
+    build_class_tag_table(l->hd(), class_tag);
+}
+
+void CgenClassTable::build_class_tag_table() {
+  int class_tag = 0;
+  build_class_tag_table(root(), class_tag);
+}
+
+void CgenClassTable::get_right_most_descendants(std::string ancestor_class, CgenNode* nd) {
+  List<CgenNode> *l = nd->get_children();
+  if (l == NULL) { // Leaf nodes have no children
+    right_most_descendants[ancestor_class] = nd->get_name()->get_string();
+    return;
+  }
+  for( ; l->tl(); l = l->tl()) {} // Get to the right most child
+  get_right_most_descendants(ancestor_class, l->hd());
+}
+
+void CgenClassTable::build_right_most_descendants() {
+  for(List<CgenNode> *l = nds; l; l = l->tl())
+    get_right_most_descendants(l->hd()->get_name()->get_string(), l->hd());
+}
+
 // Go through all nodes from root to descendants to gather all attr and full_method names
 void CgenClassTable::gather_attr_and_full_method_names(CgenNode* nd) {
   Features features = nd->get_features();
@@ -667,24 +702,6 @@ void method_class::gather_variable_names(std::string enclosing_class, CgenNode* 
     gather_variable_names(enclosing_class, l->hd());
 }
 
-void CgenClassTable::build_class_tag_table(CgenNode* nd, int& class_tag) {
-  class_tags[nd->get_name()->get_string()] = class_tag++;
-  for(List<CgenNode> *l = nd->get_children(); l; l = l->tl())
-    build_class_tag_table(l->hd(), class_tag);
-}
-
-void CgenClassTable::build_class_tag_table() {
-  int class_tag = 0;
-  build_class_tag_table(root(), class_tag);
-}
-
-void CgenClassTable::fill_local_variable_slots() {
-  for(List<CgenNode> *l = nds; l; l = l->tl()) {
-    object_init_local_slots[l->hd()->get_name()->get_string()] = 0; // Some classes have no attrs
-    if (!l->hd()->basic()) l->hd()->gather_local_slots();
-  }
-}
-
 CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
 {
   enterscope();
@@ -701,6 +718,9 @@ CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
   stringclasstag = class_tags[Str->get_string()];
   intclasstag    = class_tags[Int->get_string()];
   boolclasstag   = class_tags[Bool->get_string()];
+
+  if (cgen_debug) cout << "Building right most descendant table" << endl;
+  build_right_most_descendants();
 
   gather_attr_and_full_method_names(root());
 
@@ -1248,11 +1268,57 @@ void loop_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int 
 }
 
 void typcase_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+  int done_label = label_num++;
+  int case_label = label_num++;
 
+  std::string branch_class_name;
 
+  std::vector<Case> branches;
+  for(int i = cases->first(); cases->more(i); i = cases->next(i))
+    branches.push_back(cases->nth(i));
 
+  // Sort the case branches in descending order based on their declared type's tag
+  // because the spec wants the closest ancestor (the bigger the tag, the further away from the root)
+  std::sort(branches.begin(), branches.end(),
+            [](Case lhs, Case rhs) {
+              return class_tags[lhs->get_type_decl()->get_string()] >
+                     class_tags[rhs->get_type_decl()->get_string()]; });
 
+  expr->code(nd, env, local_slot, s);
+  emit_bne(ACC, ZERO, case_label, s);
+  emit_load_string(ACC, stringtable.lookup_string(nd->get_filename()->get_string()), s);
+  emit_load_imm(T1, 1, s);
+  s << JAL << "_case_abort2" << endl;
 
+  emit_label_def(case_label, s);
+  emit_load(T1, 0, ACC, s); // Get the class tag of the value of expr
+
+  // Based on how class tags are assigned (left-to-right DFS ordering),
+  // Every tag (a number) within class A's tag and its right most descendant's tag is a descendant of A
+  for(auto branch: branches) {
+    case_label = label_num++;
+
+    branch_class_name = branch->get_type_decl()->get_string();
+    emit_blti(T1, class_tags[branch_class_name], case_label, s);
+    emit_bgti(T1, class_tags[right_most_descendants[branch_class_name]], case_label, s);
+
+    branch->code(nd, env, local_slot, s); // Matched with this branch
+    emit_branch(done_label, s);
+
+    emit_label_def(case_label, s);
+  }
+
+  s << JAL << "_case_abort" << endl; // If it gets here, it means there are no matching branches
+
+  emit_label_def(done_label, s);
+}
+
+void branch_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+  env->enterscope();
+  env->addid(name->get_string(), new Locator(Local, local_slot));
+  emit_store(ACC, -local_slot, FP, s);
+  expr->code(nd, env, local_slot + 1, s);
+  env->exitscope();
 }
 
 void block_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
