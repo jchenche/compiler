@@ -1148,12 +1148,12 @@ void attr_class::code_attr_init(CgenNode* nd, SymbolTable<std::string, Locator>*
 
 
 void assign_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+  expr->code(nd, env, local_slot, s);
   Locator* locator = env->lookup(name->get_string());
   char* reg = FP;
   int offset = locator->get_offset();
   if (locator->get_var_type() == Attr) reg = SELF;
   if (locator->get_var_type() == Local) offset = -offset;
-  expr->code(nd, env, local_slot, s);
   emit_store(ACC, offset, reg, s);
 }
 
@@ -1246,6 +1246,11 @@ void loop_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int 
 }
 
 void typcase_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+
+
+
+
+
 }
 
 void block_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
