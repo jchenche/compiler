@@ -490,7 +490,7 @@ void BoolConst::code_def(ostream& s, int boolclasstag)
 //////////////////////////////////////////////////////////////////////////////
 
 
-// Class tags are based on their order in class list
+// Class tags are based on their left-to-right DFS ordering from CgenClassTable's root()
 static unordered_map<std::string, int> class_tags;
 
 // Reserve space in the stack for local variables
@@ -622,29 +622,28 @@ void CgenClassTable::code_constants()
   code_bools(boolclasstag);
 }
 
-// Go through all nodes from root to descendants to gather all attr and param names
-static void gather_attr_and_full_method_names(CgenNode* nd) {
+// Go through all nodes from root to descendants to gather all attr and full_method names
+void CgenClassTable::gather_attr_and_full_method_names(CgenNode* nd) {
   Features features = nd->get_features();
-  for(int i = features->first(); features->more(i); i = features->next(i)) {
+  for(int i = features->first(); features->more(i); i = features->next(i))
     features->nth(i)->gather_variable_names(nd->get_name()->get_string(), nd);
-  }
-  for(List<CgenNode> *l = nd->get_children(); l; l = l->tl()) {
+
+  for(List<CgenNode> *l = nd->get_children(); l; l = l->tl())
     gather_attr_and_full_method_names(l->hd());
-  }
 }
 
-// Features from class A (saved as first parameter) will fill in table (param/attr names) for A
+//
+// Features from class A (saved as first parameter) will fill in table (full_method/attr names) for A
 // and propagate themselves to fill in tables for all descendants of A recursively
-
-void attr_class::gather_variable_names(std::string class_of_feature, CgenNode* nd) {
+//
+void attr_class::gather_variable_names(std::string enclosing_class, CgenNode* nd) {
   std::string class_name = nd->get_name()->get_string();
   std::string attr_name = name->get_string();
   std::string attr_type = type_decl->get_string();
   attr_names[class_name].push_back({attr_name, attr_type});
 
-  for(List<CgenNode> *l = nd->get_children(); l; l = l->tl()) {
-    gather_variable_names(class_of_feature, l->hd());
-  }
+  for(List<CgenNode> *l = nd->get_children(); l; l = l->tl())
+    gather_variable_names(enclosing_class, l->hd());
 }
 
 static int first_of_pair_in_vector(vector<std::pair<std::string, std::string> > v, std::string e) {
@@ -654,25 +653,29 @@ static int first_of_pair_in_vector(vector<std::pair<std::string, std::string> > 
   return -1;
 }
 
-void method_class::gather_variable_names(std::string class_of_feature, CgenNode* nd) {
+void method_class::gather_variable_names(std::string enclosing_class, CgenNode* nd) {
   std::string class_name = nd->get_name()->get_string();
   std::string method_name = name->get_string();
   int method_idx = first_of_pair_in_vector(full_method_names[class_name], method_name);
   if (method_idx == -1) { // Not found
-    full_method_names[class_name].push_back({method_name, class_of_feature + METHOD_SEP + method_name});
+    full_method_names[class_name].push_back({method_name, enclosing_class + METHOD_SEP + method_name});
   } else {
-    full_method_names[class_name].at(method_idx).second = class_of_feature + METHOD_SEP + method_name;
+    full_method_names[class_name].at(method_idx).second = enclosing_class + METHOD_SEP + method_name;
   }
 
-  for(List<CgenNode> *l = nd->get_children(); l; l = l->tl()) {
-    gather_variable_names(class_of_feature, l->hd());
-  }
+  for(List<CgenNode> *l = nd->get_children(); l; l = l->tl())
+    gather_variable_names(enclosing_class, l->hd());
+}
+
+void CgenClassTable::build_class_tag_table(CgenNode* nd, int& class_tag) {
+  class_tags[nd->get_name()->get_string()] = class_tag++;
+  for(List<CgenNode> *l = nd->get_children(); l; l = l->tl())
+    build_class_tag_table(l->hd(), class_tag);
 }
 
 void CgenClassTable::build_class_tag_table() {
   int class_tag = 0;
-  for(List<CgenNode> *l = nds; l; l = l->tl())
-    class_tags[l->hd()->get_name()->get_string()] = class_tag++;
+  build_class_tag_table(root(), class_tag);
 }
 
 void CgenClassTable::fill_local_variable_slots() {
@@ -888,36 +891,38 @@ void CgenNode::set_parentnd(CgenNodeP p)
 }
 
 
-// code_class_nameTab() and code_class_objTab() assume that classes get their tags
-// according to their orders in nds. Refer to build_class_tag_table()
+//
+// code_class_nameTab() and code_class_objTab() assume that classes get their tags based on
+// their left-to-right DFS ordering from CgenClassTable's root(). Refer to build_class_tag_table()
+//
+void CgenClassTable::code_class_nameTab(CgenNode* nd) {
+  StringEntry* class_sym;
+  class_sym = stringtable.lookup_string(nd->get_name()->get_string());
+  str << WORD; class_sym->code_ref(str); str << endl;
+  for(List<CgenNode> *l = nd->get_children(); l; l = l->tl())
+    code_class_nameTab(l->hd());
+}
 
-void CgenClassTable::code_class_nameTab()
-{
+void CgenClassTable::code_class_nameTab() {
   str << CLASSNAMETAB << LABEL;
-
-  StringEntry* class_sym;
-
-  for(List<CgenNode> *l = nds; l; l = l->tl()) {
-    class_sym = stringtable.lookup_string(l->hd()->get_name()->get_string());
-    str << WORD; class_sym->code_ref(str); str << endl;
-  }
+  code_class_nameTab(root());
 }
 
-void CgenClassTable::code_class_objTab()
-{
+void CgenClassTable::code_class_objTab(CgenNode* nd) {
+  StringEntry* class_sym;
+  class_sym = stringtable.lookup_string(nd->get_name()->get_string());
+  str << WORD << class_sym << PROTOBJ_SUFFIX << endl;
+  str << WORD << class_sym << CLASSINIT_SUFFIX << endl;
+  for(List<CgenNode> *l = nd->get_children(); l; l = l->tl())
+    code_class_objTab(l->hd());
+}
+
+void CgenClassTable::code_class_objTab() {
   str << CLASSOBJTAB << LABEL;
-
-  StringEntry* class_sym;
-
-  for(List<CgenNode> *l = nds; l; l = l->tl()) {
-    class_sym = stringtable.lookup_string(l->hd()->get_name()->get_string());
-    str << WORD << class_sym << PROTOBJ_SUFFIX << endl;
-    str << WORD << class_sym << CLASSINIT_SUFFIX << endl;
-  }
+  code_class_objTab(root());
 }
 
-void CgenClassTable::code_dispatchTab()
-{
+void CgenClassTable::code_dispatchTab() {
   std::string class_name;
   std::string full_method_name;
   vector<std::pair<std::string, std::string> > methods;
@@ -934,8 +939,7 @@ void CgenClassTable::code_dispatchTab()
   }
 }
 
-void CgenClassTable::code_proto_Obj()
-{
+void CgenClassTable::code_proto_Obj() {
   std::string class_name;
   vector<std::pair<std::string, std::string> > attrs;
   int num_attrs;
@@ -964,14 +968,12 @@ void CgenClassTable::code_proto_Obj()
   }
 }
 
-void CgenClassTable::code_object_init()
-{
+void CgenClassTable::code_object_init() {
   for(List<CgenNode> *l = nds; l; l = l->tl())
     l->hd()->code_init(str);
 }
 
-void CgenClassTable::code_class_methods()
-{
+void CgenClassTable::code_class_methods() {
   for(List<CgenNode> *l = nds; l; l = l->tl())
     if (!l->hd()->basic()) l->hd()->code_methods(str);
 }

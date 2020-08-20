@@ -31,8 +31,10 @@ private:
   int intclasstag;
   int boolclasstag;
 
+  void build_class_tag_table(CgenNode*, int&);
   void build_class_tag_table();
   void fill_local_variable_slots();
+  void gather_attr_and_full_method_names(CgenNode*);
 
   // The following methods emit code for
   // constants and global declarations.
@@ -42,10 +44,15 @@ private:
   void code_bools(int);
   void code_select_gc();
   void code_constants();
+
+  void code_class_nameTab(CgenNode*);
   void code_class_nameTab();
+  void code_class_objTab(CgenNode*);
   void code_class_objTab();
+
   void code_proto_Obj();
   void code_dispatchTab();
+
   void code_object_init();
   void code_class_methods();
 
