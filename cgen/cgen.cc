@@ -1254,20 +1254,20 @@ void block_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int
 }
 
 void let_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
-  // emit_partial_load_address(ACC, s);
-  // if      (type_decl == Str)  stringtable.lookup_string("")->code_ref(s);
-  // else if (type_decl == Int)  inttable.lookup_string("0")->code_ref(s);
-  // else if (type_decl == Bool) falsebool.code_ref(s);
-  // else s << 0; // Default value for everything else is void (represented by 0)
-  // s << endl;
+  emit_partial_load_address(ACC, s);
+  if      (type_decl == Str)  stringtable.lookup_string("")->code_ref(s);
+  else if (type_decl == Int)  inttable.lookup_string("0")->code_ref(s);
+  else if (type_decl == Bool) falsebool.code_ref(s);
+  else s << 0; // Default value for everything else is void (represented by 0)
+  s << endl;
 
-  // init->code(nd, env, local_slot, s); // Could be no_expr(), hence the above code
+  init->code(nd, env, local_slot, s); // Could be no_expr(), hence the above code
 
-  // env->enterscope();
-  // env->addid(identifier->get_string(), new Locator(Local, local_slot));
-  // emit_store(ACC, -local_slot, FP, s);
-  // body->code(nd, env, local_slot + 1, s);
-  // env->exitscope();
+  env->enterscope();
+  env->addid(identifier->get_string(), new Locator(Local, local_slot));
+  emit_store(ACC, -local_slot, FP, s);
+  body->code(nd, env, local_slot + 1, s);
+  env->exitscope();
 }
 
 static void code_arithmetic(Expression e1, Expression e2,
