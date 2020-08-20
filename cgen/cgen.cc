@@ -1339,8 +1339,10 @@ void eq_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int lo
   emit_move(T2, ACC, s);
   emit_pop(T1, s);
   emit_load_bool(ACC, BoolConst(1), s);
+  emit_beq(T1, T2, label_num, s);
   emit_load_bool(A1, BoolConst(0), s);
   s << JAL << "equality_test" << endl;
+  emit_label_def(label_num++, s);
 }
 
 void comp_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
