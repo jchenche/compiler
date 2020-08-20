@@ -1212,13 +1212,14 @@ void dispatch_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, 
 }
 
 void cond_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
-  pred->code(nd, env, local_slot, s);
-  emit_fetch_bool(T1, ACC, s);
   int else_label = label_num++;
+  int after_cond_label = label_num++;
+
+  pred->code(nd, env, local_slot, s);
+  emit_fetch_bool(T1, ACC, s);  
   emit_beqz(T1, else_label, s);
 
   then_exp->code(nd, env, local_slot, s);
-  int after_cond_label = label_num++;
   emit_branch(after_cond_label, s);
 
   emit_label_def(else_label, s);
@@ -1228,6 +1229,20 @@ void cond_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int 
 }
 
 void loop_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+  int loop_label = label_num++;
+  int end_label = label_num++;
+
+  emit_label_def(loop_label, s);
+
+  pred->code(nd, env, local_slot, s);
+  emit_fetch_bool(T1, ACC, s);
+  emit_beqz(T1, end_label, s);
+
+  body->code(nd, env, local_slot, s);
+
+  emit_branch(loop_label, s);
+  emit_label_def(end_label, s);
+  emit_move(ACC, ZERO, s);
 }
 
 void typcase_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
