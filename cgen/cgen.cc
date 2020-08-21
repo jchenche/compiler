@@ -1062,6 +1062,7 @@ void method_class::code_method_def(CgenNode* nd, ostream& s) {
   std::string method_name = name->get_string();
   std::string attr_name;
   std::string formal_name;
+  int num_params = formals->len();
   int offset;
 
   // Memory location of var name is found by offset*MULTIPLIER(reg)
@@ -1078,10 +1079,10 @@ void method_class::code_method_def(CgenNode* nd, ostream& s) {
   }
 
   env->enterscope();
-  offset = 1;
+  offset = num_params;
   for(int i = formals->first(); formals->more(i); i = formals->next(i)) {
     formal_name = formals->nth(i)->get_name()->get_string();
-    env->addid(formal_name, new Locator(Param, offset++));
+    env->addid(formal_name, new Locator(Param, offset--));
   }
 
   s << class_name + METHOD_SEP + method_name << LABEL;
@@ -1097,7 +1098,7 @@ void method_class::code_method_def(CgenNode* nd, ostream& s) {
   emit_load(RA, 1, SP, s);
   emit_load(SELF, 2, SP, s);
   emit_load(FP, 0, FP, s);
-  emit_addiu(SP, SP, (formals->len() + 3 + method_local_slots[class_name][method_name])*WORD_SIZE, s);
+  emit_addiu(SP, SP, (num_params + 3 + method_local_slots[class_name][method_name])*WORD_SIZE, s);
   emit_return(s);
 
   env->exitscope();
@@ -1180,11 +1181,9 @@ void assign_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, in
 }
 
 void static_dispatch_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
-  int num_args = actual->len();
-  emit_addiu(SP, SP, -num_args*WORD_SIZE, s);
   for(int i = actual->first(); actual->more(i); i = actual->next(i)) {
     actual->nth(i)->code(nd, env, local_slot, s);
-    emit_store(ACC, i+1, SP, s);
+    emit_push(ACC, s);
   }
 
   expr->code(nd, env, local_slot, s);
@@ -1204,11 +1203,9 @@ void static_dispatch_class::code(CgenNode* nd, SymbolTable<std::string, Locator>
 }
 
 void dispatch_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
-  int num_args = actual->len();
-  emit_addiu(SP, SP, -num_args*WORD_SIZE, s);
   for(int i = actual->first(); actual->more(i); i = actual->next(i)) {
     actual->nth(i)->code(nd, env, local_slot, s);
-    emit_store(ACC, i+1, SP, s);
+    emit_push(ACC, s);
   }
 
   expr->code(nd, env, local_slot, s);
