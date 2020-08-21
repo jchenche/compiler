@@ -1180,13 +1180,11 @@ void assign_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, in
 }
 
 void static_dispatch_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
-  std::vector<Expression> exprs;
-  for(int i = actual->first(); actual->more(i); i = actual->next(i))
-    exprs.push_back(actual->nth(i));
-  std::reverse(exprs.begin(), exprs.end());
-  for (auto e: exprs) {
-    e->code(nd, env, local_slot, s);
-    emit_push(ACC, s);
+  int num_args = actual->len();
+  emit_addiu(SP, SP, -num_args*WORD_SIZE, s);
+  for(int i = actual->first(); actual->more(i); i = actual->next(i)) {
+    actual->nth(i)->code(nd, env, local_slot, s);
+    emit_store(ACC, i+1, SP, s);
   }
 
   expr->code(nd, env, local_slot, s);
@@ -1206,13 +1204,11 @@ void static_dispatch_class::code(CgenNode* nd, SymbolTable<std::string, Locator>
 }
 
 void dispatch_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
-  std::vector<Expression> exprs;
-  for(int i = actual->first(); actual->more(i); i = actual->next(i))
-    exprs.push_back(actual->nth(i));
-  std::reverse(exprs.begin(), exprs.end());
-  for (auto e: exprs) {
-    e->code(nd, env, local_slot, s);
-    emit_push(ACC, s);
+  int num_args = actual->len();
+  emit_addiu(SP, SP, -num_args*WORD_SIZE, s);
+  for(int i = actual->first(); actual->more(i); i = actual->next(i)) {
+    actual->nth(i)->code(nd, env, local_slot, s);
+    emit_store(ACC, i+1, SP, s);
   }
 
   expr->code(nd, env, local_slot, s);
