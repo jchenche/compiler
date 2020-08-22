@@ -25,6 +25,7 @@ class CgenNode;
 class Locator;
 template<class SYM, class DAT>
 class SymbolTable;
+typedef SymbolTable<std::string, Locator>* Environment;
 
 class Program_class;
 typedef Program_class *Program;
@@ -80,7 +81,7 @@ void dump_with_types(ostream&,int);  \
 virtual void dump_with_types(ostream&,int) = 0; \
 virtual void gather_variable_names(std::string, CgenNode*) = 0; \
 virtual void gather_local_slots(Class_) = 0; \
-virtual void code_attr_init(CgenNode*, SymbolTable<std::string, Locator>*, ostream&) = 0; \
+virtual void code_attr_init(CgenNode*, Environment, ostream&) = 0; \
 virtual void code_method_def(CgenNode*, ostream&) = 0;
 
 
@@ -88,7 +89,7 @@ virtual void code_method_def(CgenNode*, ostream&) = 0;
 void dump_with_types(ostream&,int);    \
 void gather_variable_names(std::string, CgenNode*); \
 void gather_local_slots(Class_); \
-void code_attr_init(CgenNode*, SymbolTable<std::string, Locator>*, ostream&); \
+void code_attr_init(CgenNode*, Environment, ostream&); \
 void code_method_def(CgenNode*, ostream&);
 
 
@@ -104,14 +105,14 @@ Symbol get_name() { return name; }
 
 #define Case_EXTRAS                             \
 virtual void dump_with_types(ostream& ,int) = 0; \
-virtual void code(CgenNode*, SymbolTable<std::string, Locator>*, int, ostream&) = 0; \
+virtual void code(CgenNode*, Environment, int, ostream&) = 0; \
 virtual int num_locals() = 0; \
 virtual Symbol get_type_decl() = 0;
 
 
 #define branch_EXTRAS                                   \
 void dump_with_types(ostream& ,int); \
-void code(CgenNode*, SymbolTable<std::string, Locator>*, int, ostream&); \
+void code(CgenNode*, Environment, int, ostream&); \
 int num_locals(); \
 Symbol get_type_decl() { return type_decl; }
 
@@ -120,14 +121,14 @@ Symbol get_type_decl() { return type_decl; }
 Symbol type;                                 \
 Symbol get_type() { return type; }           \
 Expression set_type(Symbol s) { type = s; return this; } \
-virtual void code(CgenNode*, SymbolTable<std::string, Locator>*, int, ostream&) = 0; \
+virtual void code(CgenNode*, Environment, int, ostream&) = 0; \
 virtual void dump_with_types(ostream&,int) = 0;  \
 void dump_type(ostream&, int);               \
 Expression_class() { type = (Symbol) NULL; } \
 virtual int num_locals() = 0;
 
 #define Expression_SHARED_EXTRAS           \
-void code(CgenNode*, SymbolTable<std::string, Locator>*, int, ostream&); 			   \
+void code(CgenNode*, Environment, int, ostream&); 			   \
 void dump_with_types(ostream&,int); \
 int num_locals();
 

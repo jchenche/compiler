@@ -683,7 +683,7 @@ void attr_class::gather_variable_names(std::string enclosing_class, CgenNode* nd
     gather_variable_names(enclosing_class, l->hd());
 }
 
-static int first_of_pair_in_vector(vector<std::pair<std::string, std::string> > v, std::string e) {
+static int find_method_index(vector<std::pair<std::string, std::string> > v, std::string e) {
   int size = v.size();
   for (int i = 0; i < size; ++i)
     if (e == v.at(i).first) return i;
@@ -693,7 +693,7 @@ static int first_of_pair_in_vector(vector<std::pair<std::string, std::string> > 
 void method_class::gather_variable_names(std::string enclosing_class, CgenNode* nd) {
   std::string class_name = nd->get_name()->get_string();
   std::string method_name = name->get_string();
-  int method_idx = first_of_pair_in_vector(full_method_names[class_name], method_name);
+  int method_idx = find_method_index(full_method_names[class_name], method_name);
   if (method_idx == -1) { // Not found
     full_method_names[class_name].push_back({method_name, enclosing_class + METHOD_SEP + method_name});
   } else { // Override ancestor's method for dynamic dispatch
@@ -1078,8 +1078,8 @@ Locator::Locator(Variable_type type, int _offset) : var_type(type), offset(_offs
 // The -1 is not part of the object, it's used by the garbage collector of the runtime system.
 // tag is the interger representation of a class.
 // size is the number of words the object occupies in memory.
-// disTab points to the dispatch table for the class (objects of the same type have the same dispatch table).
-// Subsequent slots are occupied by attributes of the object (each object has a different set of values).
+// dispTab points to the dispatch table for the class.
+// Subsequent slots are occupied by attributes of the object.
 
   |----------|
   |    -1    |
@@ -1143,7 +1143,7 @@ void method_class::code_method_def(CgenNode* nd, ostream& s) {
   s << class_name + METHOD_SEP + method_name << LABEL;
   emit_push(FP, s);
   emit_addiu(FP, SP, WORD_SIZE, s); // Set current FP to point to the old FP
-  emit_addiu(SP, SP, -method_local_slots[class_name][method_name]*WORD_SIZE, s); // Reserved for local vars
+  emit_addiu(SP, SP, -method_local_slots[class_name][method_name]*WORD_SIZE, s); // Reserved for locals
   emit_push(SELF, s);
   emit_push(RA, s);
   emit_move(SELF, ACC, s);
@@ -1178,7 +1178,7 @@ void CgenNode::code_init(ostream& s) {
   s << class_name << CLASSINIT_SUFFIX << LABEL;
   emit_push(FP, s);
   emit_addiu(FP, SP, WORD_SIZE, s); // Set current FP to point to the old FP
-  emit_addiu(SP, SP, -object_init_local_slots[class_name]*WORD_SIZE, s); // Reserved for local vars
+  emit_addiu(SP, SP, -object_init_local_slots[class_name]*WORD_SIZE, s); // Reserved for locals
   emit_push(SELF, s);
   emit_push(RA, s);
   emit_move(SELF, ACC, s);
@@ -1202,9 +1202,9 @@ void CgenNode::code_init(ostream& s) {
 }
 
 // Object init only involves attrs
-void method_class::code_attr_init(CgenNode* nd, SymbolTable<std::string, Locator>* env, ostream& s) {}
+void method_class::code_attr_init(CgenNode* nd, Environment env, ostream& s) {}
 
-void attr_class::code_attr_init(CgenNode* nd, SymbolTable<std::string, Locator>* env, ostream& s) {
+void attr_class::code_attr_init(CgenNode* nd, Environment env, ostream& s) {
   emit_partial_load_address(ACC, s);
   if      (type_decl == Str)  stringtable.lookup_string("")->code_ref(s);
   else if (type_decl == Int)  inttable.lookup_string("0")->code_ref(s);
@@ -1225,7 +1225,7 @@ void attr_class::code_attr_init(CgenNode* nd, SymbolTable<std::string, Locator>*
 
 
 
-void assign_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void assign_class::code(CgenNode* nd, Environment env, int local_slot, ostream &s) {
   expr->code(nd, env, local_slot, s);
   Locator* locator = env->lookup(name->get_string());
   char* reg = FP;
@@ -1235,7 +1235,7 @@ void assign_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, in
   emit_store(ACC, offset, reg, s);
 }
 
-void static_dispatch_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void static_dispatch_class::code(CgenNode* nd, Environment env, int local_slot, ostream &s) {
   for(int i = actual->first(); actual->more(i); i = actual->next(i)) {
     actual->nth(i)->code(nd, env, local_slot, s);
     emit_push(ACC, s);
@@ -1250,14 +1250,15 @@ void static_dispatch_class::code(CgenNode* nd, SymbolTable<std::string, Locator>
   emit_label_def(label_num++, s);
   emit_partial_load_address(T1, s); s << type_name << DISPTAB_SUFFIX << endl;
 
-  int method_idx = first_of_pair_in_vector(full_method_names[type_name->get_string()], name->get_string());
-  assert(method_idx != -1); // static dispatch type must have the method we are dispatching (semantic analysis)
+  int method_idx = find_method_index(full_method_names[type_name->get_string()], name->get_string());
+  // static dispatch type must have the method we are dispatching (semantic analysis)
+  assert(method_idx != -1);
 
   emit_load(T1, method_idx, T1, s);
   emit_jalr(T1, s);
 }
 
-void dispatch_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void dispatch_class::code(CgenNode* nd, Environment env, int local_slot, ostream &s) {
   for(int i = actual->first(); actual->more(i); i = actual->next(i)) {
     actual->nth(i)->code(nd, env, local_slot, s);
     emit_push(ACC, s);
@@ -1274,14 +1275,15 @@ void dispatch_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, 
 
   Symbol static_type = expr->get_type();
   if (static_type == SELF_TYPE) static_type = nd->get_name();
-  int method_idx = first_of_pair_in_vector(full_method_names[static_type->get_string()], name->get_string());
-  assert(method_idx != -1); // Static type of expr must have the method we are dispatching (semantic analysis)
+  int method_idx = find_method_index(full_method_names[static_type->get_string()], name->get_string());
+  // Static type of expr must have the method we are dispatching (semantic analysis)
+  assert(method_idx != -1);
 
   emit_load(T1, method_idx, T1, s);
   emit_jalr(T1, s);
 }
 
-void cond_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void cond_class::code(CgenNode* nd, Environment env, int local_slot, ostream &s) {
   int else_label = label_num++;
   int after_cond_label = label_num++;
 
@@ -1298,7 +1300,7 @@ void cond_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int 
   emit_label_def(after_cond_label, s);
 }
 
-void loop_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void loop_class::code(CgenNode* nd, Environment env, int local_slot, ostream &s) {
   int loop_label = label_num++;
   int end_label = label_num++;
 
@@ -1315,7 +1317,7 @@ void loop_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int 
   emit_move(ACC, ZERO, s);
 }
 
-void typcase_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void typcase_class::code(CgenNode* nd, Environment env, int local_slot, ostream &s) {
   int done_label = label_num++;
   int case_label = label_num++;
 
@@ -1326,7 +1328,7 @@ void typcase_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, i
     branches.push_back(cases->nth(i));
 
   // Sort the case branches in descending order based on their declared type's tag
-  // because the spec wants the closest ancestor (the bigger the tag, the further away from the root)
+  // because the spec wants the closest ancestor
   std::sort(branches.begin(), branches.end(),
             [](Case lhs, Case rhs) {
               return class_tags[lhs->get_type_decl()->get_string()] >
@@ -1342,7 +1344,8 @@ void typcase_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, i
   emit_load(T1, TAG_OFFSET, ACC, s); // Get the class tag of the value of expr
 
   // Based on how classes get their tags (left-to-right DFS ordering),
-  // every tag (a number) within class A's tag and its right most descendant's tag is a descendant of A
+  // every tag (a number) within class A's tag and
+  // its right most descendant's tag is a descendant of A
   for(auto branch: branches) {
     case_label = label_num++;
 
@@ -1361,7 +1364,7 @@ void typcase_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, i
   emit_label_def(done_label, s);
 }
 
-void branch_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void branch_class::code(CgenNode* nd, Environment env, int local_slot, ostream &s) {
   env->enterscope();
   env->addid(name->get_string(), new Locator(Local, local_slot));
   emit_store(ACC, -local_slot, FP, s);
@@ -1369,12 +1372,12 @@ void branch_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, in
   env->exitscope();
 }
 
-void block_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void block_class::code(CgenNode* nd, Environment env, int local_slot, ostream &s) {
   for(int i = body->first(); body->more(i); i = body->next(i))
     body->nth(i)->code(nd, env, local_slot, s);
 }
 
-void let_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void let_class::code(CgenNode* nd, Environment env, int local_slot, ostream &s) {
   emit_partial_load_address(ACC, s);
   if      (type_decl == Str)  stringtable.lookup_string("")->code_ref(s);
   else if (type_decl == Int)  inttable.lookup_string("0")->code_ref(s);
@@ -1392,7 +1395,7 @@ void let_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int l
 }
 
 static void code_arithmetic(Expression e1, Expression e2,
-                            CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s,
+                            CgenNode* nd, Environment env, int local_slot, ostream &s,
                             std::function<void(char*, char*, char*, ostream&)> arith_emitter) {
   e1->code(nd, env, local_slot, s);
   emit_push(ACC, s);
@@ -1405,23 +1408,23 @@ static void code_arithmetic(Expression e1, Expression e2,
   emit_store_int(T1, ACC, s);
 }
 
-void plus_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void plus_class::code(CgenNode* nd, Environment env, int local_slot, ostream &s) {
   code_arithmetic(e1, e2, nd, env, local_slot, s, emit_add);
 }
 
-void sub_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void sub_class::code(CgenNode* nd, Environment env, int local_slot, ostream &s) {
   code_arithmetic(e1, e2, nd, env, local_slot, s, emit_sub);
 }
 
-void mul_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void mul_class::code(CgenNode* nd, Environment env, int local_slot, ostream &s) {
   code_arithmetic(e1, e2, nd, env, local_slot, s, emit_mul);
 }
 
-void divide_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void divide_class::code(CgenNode* nd, Environment env, int local_slot, ostream &s) {
   code_arithmetic(e1, e2, nd, env, local_slot, s, emit_div);
 }
 
-void neg_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void neg_class::code(CgenNode* nd, Environment env, int local_slot, ostream &s) {
   e1->code(nd, env, local_slot, s); // ACC now contains an Int object
   s << JAL << Object << METHOD_SEP << "copy" << endl;
   emit_fetch_int(T1, ACC, s);
@@ -1430,7 +1433,7 @@ void neg_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int l
 }
 
 static void code_comparison(Expression e1, Expression e2,
-                            CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s,
+                            CgenNode* nd, Environment env, int local_slot, ostream &s,
                             std::function<void(char*, char*, int, ostream&)> comp_emitter) {
   e1->code(nd, env, local_slot, s);
   emit_push(ACC, s);  
@@ -1445,15 +1448,15 @@ static void code_comparison(Expression e1, Expression e2,
   emit_label_def(label_num++, s);
 }
 
-void lt_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void lt_class::code(CgenNode* nd, Environment env, int local_slot, ostream &s) {
   code_comparison(e1, e2, nd, env, local_slot, s, emit_blt);
 }
 
-void leq_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void leq_class::code(CgenNode* nd, Environment env, int local_slot, ostream &s) {
   code_comparison(e1, e2, nd, env, local_slot, s, emit_bleq);
 }
 
-void eq_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void eq_class::code(CgenNode* nd, Environment env, int local_slot, ostream &s) {
   e1->code(nd, env, local_slot, s);
   emit_push(ACC, s);
   e2->code(nd, env, local_slot, s);
@@ -1466,7 +1469,7 @@ void eq_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int lo
   emit_label_def(label_num++, s);
 }
 
-void comp_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void comp_class::code(CgenNode* nd, Environment env, int local_slot, ostream &s) {
   e1->code(nd, env, local_slot, s); // ACC now contains a Bool object
   emit_fetch_bool(T1, ACC, s);
   emit_load_bool(ACC, BoolConst(1), s);
@@ -1475,20 +1478,20 @@ void comp_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int 
   emit_label_def(label_num++, s);
 }
 
-void int_const_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream& s) {
+void int_const_class::code(CgenNode* nd, Environment env, int local_slot, ostream& s) {
   // Need to be sure we have an IntEntry *, not an arbitrary Symbol
   emit_load_int(ACC,inttable.lookup_string(token->get_string()),s);
 }
 
-void string_const_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream& s) {
+void string_const_class::code(CgenNode* nd, Environment env, int local_slot, ostream& s) {
   emit_load_string(ACC,stringtable.lookup_string(token->get_string()),s);
 }
 
-void bool_const_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream& s) {
+void bool_const_class::code(CgenNode* nd, Environment env, int local_slot, ostream& s) {
   emit_load_bool(ACC, BoolConst(val), s);
 }
 
-void new__class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void new__class::code(CgenNode* nd, Environment env, int local_slot, ostream &s) {
   // Get the class tag
   if (type_name == SELF_TYPE) emit_load(T2, TAG_OFFSET, SELF, s);
   else                        emit_load_imm(T2, class_tags[type_name->get_string()], s);
@@ -1508,7 +1511,7 @@ void new__class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int 
   emit_jalr(T1, s);
 }
 
-void isvoid_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void isvoid_class::code(CgenNode* nd, Environment env, int local_slot, ostream &s) {
   e1->code(nd, env, local_slot, s);
   emit_move(T1, ACC, s);
   emit_load_bool(ACC, BoolConst(1), s);
@@ -1518,9 +1521,9 @@ void isvoid_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, in
 }
 
 // Emit nothing for no_expr() because it simply doesn't have anything
-void no_expr_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {}
+void no_expr_class::code(CgenNode* nd, Environment env, int local_slot, ostream &s) {}
 
-void object_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
+void object_class::code(CgenNode* nd, Environment env, int local_slot, ostream &s) {
   if (name == self) {
     emit_move(ACC, SELF, s);
     return;
