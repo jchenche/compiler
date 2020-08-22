@@ -1,5 +1,7 @@
 # Compiler for Cool
-Cool is an object-oriented language with static typing. This compiler was developed inside a Linux virtual machine and compiled with g++ 9.3.0 which supports modern C++.
+Cool is an object-oriented language with static typing. The compiler was developed inside a Linux virtual machine and compiled with g++ 9.3.0 which supports modern C++.
+
+This project is based on [Stanford CS143](https://web.stanford.edu/class/cs143/).
 
 ## Lexical Analysis
 #### The core file is [lexer/cool.flex](lexer/cool.flex)
