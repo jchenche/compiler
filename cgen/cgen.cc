@@ -490,7 +490,8 @@ void BoolConst::code_def(ostream& s, int boolclasstag)
 //////////////////////////////////////////////////////////////////////////////
 
 
-// Class tags are based on their left-to-right DFS ordering from CgenClassTable's root()
+// Classes get their tags based on their left-to-right DFS ordering from CgenClassTable's root().
+// Refer to build_class_tag_table().
 static unordered_map<std::string, int> class_tags;
 
 static unordered_map<std::string, std::string> right_most_descendants;
@@ -501,11 +502,12 @@ static unordered_map<std::string, std::string> right_most_descendants;
 static unordered_map<std::string, int> object_init_local_slots;
 static unordered_map<std::string, unordered_map<std::string, int> > method_local_slots;
 
-// These names are used to determine the offsets for env
+// attr_names is used to faciliate attribute lookups via some environment.
+// full_method_names is used to facilitate method lookups in dispatch tables.
 static unordered_map<std::string, vector<std::pair<std::string, std::string> > > attr_names;
 static unordered_map<std::string, vector<std::pair<std::string, std::string> > > full_method_names;
 
-static int label_num = 0;
+static int label_num = 0; // This is used to name memory locations.
 
 
 //***************************************************
@@ -694,7 +696,7 @@ void method_class::gather_variable_names(std::string enclosing_class, CgenNode* 
   int method_idx = first_of_pair_in_vector(full_method_names[class_name], method_name);
   if (method_idx == -1) { // Not found
     full_method_names[class_name].push_back({method_name, enclosing_class + METHOD_SEP + method_name});
-  } else {
+  } else { // Override ancestor's method for dynamic dispatch
     full_method_names[class_name].at(method_idx).second = enclosing_class + METHOD_SEP + method_name;
   }
 
@@ -1048,6 +1050,64 @@ CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTableP ct) :
 
 Locator::Locator(Variable_type type, int _offset) : var_type(type), offset(_offset) {}
 
+//////////////////////////////////////////////////////////////////////////
+/* Layout of the activation record (stack frame)
+
+// On function calls, the callee saves $fp, $s0, $ra on the stack.
+// Arguments are pushed by the caller where the first one gets pushed first.
+
+  |----------|
+  |   args   |
+  |----------|
+  | old $fp  | <- $fp
+  |----------|
+  |  locals  |
+  |----------|
+  |   $s0    |
+  |----------|
+  |   $ra    |
+  |----------|
+  |          | <- $sp
+  |----------|
+
+*/////////////////////////////////////////////////////////////////////////
+
+//////////////////////////////////////////////////////////////////////////
+/* Object layout (how objects are stored in memory)
+
+// The -1 is not part of the object, it's used by the garbage collector of the runtime system.
+// tag is the interger representation of a class.
+// size is the number of words the object occupies in memory.
+// disTab points to the dispatch table for the class (objects of the same type have the same dispatch table).
+// Subsequent slots are occupied by attributes of the object (each object has a different set of values).
+
+  |----------|
+  |    -1    |
+  |----------|
+  |   tag    | <- Object pointers will point here
+  |----------|
+  |   size   |
+  |----------|
+  | dispTab  |
+  |----------|
+  |  attrs   |
+  |----------|
+  |          |
+  |----------|
+
+*/////////////////////////////////////////////////////////////////////////
+
+//////////////////////////////////////////////////////////////////////////
+/* Environment structure (all evaluations are done under some env)
+
+// It is a list of scopes where the scopes are lists of (var name, locator) pairs.
+// Locator is designed to be a (var type, offset) pair.
+// Memory location of a var name is found by offset*WORD_SIZE(reg)
+// if var type is Attr,  then reg is $s0
+// if     "    is Param, then reg is $fp
+// if     "    is Local, then reg is $fp and offset is negated
+
+*/////////////////////////////////////////////////////////////////////////
 
 void CgenNode::code_methods(ostream& s) {
   for(int i = features->first(); features->more(i); i = features->next(i))
@@ -1064,11 +1124,6 @@ void method_class::code_method_def(CgenNode* nd, ostream& s) {
   std::string formal_name;
   int num_params = formals->len();
   int offset;
-
-  // Memory location of var name is found by offset*MULTIPLIER(reg)
-  // if var type is Attr,  then reg is $s0
-  // if     "    is Param, then reg is $fp
-  // if     "    is Local, then reg is $fp and offset is negated
   auto env = new SymbolTable<std::string, Locator>();
 
   env->enterscope();
@@ -1278,16 +1333,16 @@ void typcase_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, i
                      class_tags[rhs->get_type_decl()->get_string()]; });
 
   expr->code(nd, env, local_slot, s);
-  emit_bne(ACC, ZERO, case_label, s);
+  emit_bne(ACC, ZERO, case_label, s); // Make sure the target object is not void
   emit_load_string(ACC, stringtable.lookup_string(nd->get_filename()->get_string()), s);
   emit_load_imm(T1, 1, s);
   s << JAL << "_case_abort2" << endl;
 
   emit_label_def(case_label, s);
-  emit_load(T1, 0, ACC, s); // Get the class tag of the value of expr
+  emit_load(T1, TAG_OFFSET, ACC, s); // Get the class tag of the value of expr
 
-  // Based on how class tags are assigned (left-to-right DFS ordering),
-  // Every tag (a number) within class A's tag and its right most descendant's tag is a descendant of A
+  // Based on how classes get their tags (left-to-right DFS ordering),
+  // every tag (a number) within class A's tag and its right most descendant's tag is a descendant of A
   for(auto branch: branches) {
     case_label = label_num++;
 
@@ -1435,7 +1490,7 @@ void bool_const_class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env
 
 void new__class::code(CgenNode* nd, SymbolTable<std::string, Locator>* env, int local_slot, ostream &s) {
   // Get the class tag
-  if (type_name == SELF_TYPE) emit_load(T2, 0, SELF, s);
+  if (type_name == SELF_TYPE) emit_load(T2, TAG_OFFSET, SELF, s);
   else                        emit_load_imm(T2, class_tags[type_name->get_string()], s);
 
   // tag * 8 of class_objTab has the protObj for the class associated with the tag
