@@ -45,3 +45,10 @@ This project is based on [Stanford CS143](https://web.stanford.edu/class/cs143/)
   - It traverses the tree to determine, for each method (including object initializers), the maximum number of local variables being used at any point during evaluation, and reserves that much space in the stack for them. A normal method gets that number from its body, but for an object initializer, since it evaluates each attribute's initializer one after the other, it collects such number from each initializer and takes the max out of them.
   - An environment is used to determine the memory location of variable names during evaluation. It is a list of scopes where the scopes are lists of (name, locator) pairs. I designed the locator to be a (variable type, offset) pair because at runtime, the location of an attribute is found at an offset of `$s0`. For parameters and local variables, `$fp` is used instead, and for local variables alone, the offset is negated.
   - For the above locating mechanism to work, an attribute must live at a fixed offset in the object layout for a class and all of its descendants. So it builds a hash table that maps class names to vectors of (attribute name, type) pairs, including inherited attributes. It also builds a similar table for methods, but with (method name, full method name) pairs, including inherited methods, to facilitate method lookups in dispatch tables.
+
+## Scratch papers
+![](scratch_1.jpg)
+![](scratch_2.jpg)
+![](scratch_3.jpg)
+![](scratch_4.jpg)
+![](scratch_5.jpg)
